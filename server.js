@@ -1,0 +1,202 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const { Pool } = require('pg');
+const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
+
+const app = express();
+const sunucu = http.createServer(app);
+
+const io = new Server(sunucu, {
+    cors: { origin: "*" }
+});
+
+const havuz = new Pool({
+    user: 'postgres',
+    host: 'localhost',
+    database: 'ido_navigasyon',
+    password: '0000',
+    port: 5432,
+});
+
+const HAVA_DURUMU_API_ANAHTARI = 'fdb714a3e5aca6add0846116df0d6129';
+
+let gemiKonumu = {
+    enlem: 40.6500,
+    boylam: 29.2600
+};
+
+const baslangicKonumu = { enlem: gemiKonumu.enlem, boylam: gemiKonumu.boylam };
+
+const rotaNoktalari = [
+    { enlem: 40.7200, boylam: 29.1600 },
+    { enlem: 40.8756, boylam: 29.0917 },
+    { enlem: 41.0100, boylam: 29.0200 }
+];
+
+const rotaAdlari = ['Bozuk Gemi Batigi', 'Heybeliada', 'Istanbul'];
+
+const legMesafeleri = [];
+let oncekiNoktaGecici = baslangicKonumu;
+for (const nokta of rotaNoktalari) {
+    legMesafeleri.push(ikiNoktaArasiMesafe(oncekiNoktaGecici.enlem, oncekiNoktaGecici.boylam, nokta.enlem, nokta.boylam));
+    oncekiNoktaGecici = nokta;
+}
+const toplamRotaMesafesi = legMesafeleri.reduce((a, b) => a + b, 0);
+
+const ADIM_BUYUKLUGU = 0.002;
+const HIZ_METRE_SANIYE = ADIM_BUYUKLUGU * 111320;
+
+let suankiHedefIndex = 0;
+let varisBildirimiGonderildi = false;
+
+function sahteGpsGuncelle() {
+    const hedefNokta = rotaNoktalari[suankiHedefIndex];
+
+    const enlemFark = hedefNokta.enlem - gemiKonumu.enlem;
+    const boylamFark = hedefNokta.boylam - gemiKonumu.boylam;
+    const kalanMesafeDerece = Math.sqrt(enlemFark * enlemFark + boylamFark * boylamFark);
+
+    if (kalanMesafeDerece > ADIM_BUYUKLUGU) {
+        gemiKonumu.enlem += (enlemFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
+        gemiKonumu.boylam += (boylamFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
+    } else {
+        if (suankiHedefIndex < rotaNoktalari.length - 1) {
+            suankiHedefIndex++;
+            console.log('Yeni hedefe geciliyor:', rotaNoktalari[suankiHedefIndex]);
+        } else if (!varisBildirimiGonderildi) {
+            varisBildirimiGonderildi = true;
+            io.emit('varis-bildirimi', {
+                mesaj: 'Istanbul\'a hos geldiniz! Yolculugunuz tamamlandi.'
+            });
+            console.log('VARIS BILDIRIMI GONDERILDI');
+        }
+    }
+}
+
+function kalanToplamMesafeHesapla() {
+    const hedefNokta = rotaNoktalari[suankiHedefIndex];
+    let kalan = ikiNoktaArasiMesafe(gemiKonumu.enlem, gemiKonumu.boylam, hedefNokta.enlem, hedefNokta.boylam);
+
+    for (let i = suankiHedefIndex + 1; i < rotaNoktalari.length; i++) {
+        kalan += legMesafeleri[i];
+    }
+    return kalan;
+}
+
+async function konumKontrolVeYayinla() {
+    sahteGpsGuncelle();
+
+    try {
+        const sonuc = await havuz.query(
+            'SELECT ad, tip, enlem, boylam, tetikleme_mesafesi_metre, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari'
+        );
+
+        const tetiklenenler = [];
+
+        for (const nokta of sonuc.rows) {
+            const kontrol = geofenceKontrolEt(gemiKonumu.enlem, gemiKonumu.boylam, nokta);
+            if (kontrol.tetiklendi) {
+                tetiklenenler.push(kontrol);
+            }
+        }
+
+        const kalanToplamMesafe = kalanToplamMesafeHesapla();
+        const ilerlemeYuzdesi = Math.min(100, Math.max(0, ((toplamRotaMesafesi - kalanToplamMesafe) / toplamRotaMesafesi) * 100));
+        const toplamKalanDakika = kalanToplamMesafe / HIZ_METRE_SANIYE / 60;
+
+        const hedefNokta = rotaNoktalari[suankiHedefIndex];
+        const hedefeMesafe = ikiNoktaArasiMesafe(gemiKonumu.enlem, gemiKonumu.boylam, hedefNokta.enlem, hedefNokta.boylam);
+        const hedefeKalanDakika = hedefeMesafe / HIZ_METRE_SANIYE / 60;
+
+        io.emit('gemi-konum-guncelleme', {
+            enlem: gemiKonumu.enlem,
+            boylam: gemiKonumu.boylam,
+            tetiklenen_noktalar: tetiklenenler,
+            suanki_hedef: rotaAdlari[suankiHedefIndex],
+            sonraki_duraklar: rotaAdlari.slice(suankiHedefIndex + 1),
+            ilerleme_yuzdesi: ilerlemeYuzdesi,
+            toplam_kalan_dakika: toplamKalanDakika,
+            hedefe_kalan_dakika: hedefeKalanDakika
+        });
+
+        console.log(`Konum: ${gemiKonumu.enlem.toFixed(4)}, ${gemiKonumu.boylam.toFixed(4)} | Ilerleme: %${ilerlemeYuzdesi.toFixed(0)} | Kalan: ${toplamKalanDakika.toFixed(1)} dk`);
+
+    } catch (hata) {
+        console.log('Konum kontrol hatasi:', hata.message);
+    }
+}
+
+io.on('connection', (soket) => {
+    console.log('Yeni bir cihaz baglandi. ID:', soket.id);
+
+    soket.on('acil-durum-baslat', (bilgi) => {
+        console.log('ACIL DURUM BASLATILDI:', bilgi);
+        io.emit('acil-durum-uyarisi', {
+            mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
+            gemi: bilgi.gemi_adi,
+            zaman: new Date().toISOString()
+        });
+    });
+
+    soket.on('acil-durum-bitir', (bilgi) => {
+        console.log('ACIL DURUM BITIRILDI:', bilgi);
+        io.emit('acil-durum-bitti', {
+            mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
+            zaman: new Date().toISOString()
+        });
+    });
+
+    soket.on('yolcu-sayisi-guncelle', (bilgi) => {
+        console.log('YOLCU SAYISI GUNCELLENDI:', bilgi);
+        io.emit('yolcu-sayisi-yayin', bilgi);
+    });
+
+    soket.on('disconnect', () => {
+        console.log('Bir cihaz ayrildi. ID:', soket.id);
+    });
+});
+
+app.get('/tum-noktalar', async (req, res) => {
+    try {
+        const sonuc = await havuz.query(
+            'SELECT ad, tip, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari ORDER BY ad'
+        );
+        res.json(sonuc.rows);
+    } catch (hata) {
+        res.status(500).json({ hata: hata.message });
+    }
+});
+
+app.get('/hava-durumu', async (req, res) => {
+    try {
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${gemiKonumu.enlem}&lon=${gemiKonumu.boylam}&appid=${HAVA_DURUMU_API_ANAHTARI}&units=metric&lang=tr`;
+        const yanit = await fetch(url);
+        const veri = await yanit.json();
+
+        if (veri.cod && veri.cod !== 200) {
+            return res.status(500).json({ hata: veri.message || 'Hava durumu alinamadi' });
+        }
+
+        res.json({
+            sicaklik: Math.round(veri.main.temp),
+            aciklama: veri.weather[0].description,
+            ruzgarHizi: Math.round(veri.wind.speed * 3.6) // m/s -> km/s
+        });
+    } catch (hata) {
+        res.status(500).json({ hata: hata.message });
+    }
+});
+
+app.use(express.json());
+app.post('/geri-bildirim', (req, res) => {
+    console.log('GERI BILDIRIM ALINDI:', req.body);
+    res.json({ tamam: true });
+});
+
+setInterval(konumKontrolVeYayinla, 1000);
+
+const PORT = 3000;
+sunucu.listen(PORT, () => {
+    console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
+});
