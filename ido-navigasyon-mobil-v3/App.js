@@ -14,7 +14,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const SUNUCU_ADRESI = 'http://192.168.1.115:3000';
+const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';
 
 const TANITIM_EKRANLARI = [
   { baslik: 'Hos Geldiniz', metin: 'IDO Engelsiz Navigasyon, Yalova-Istanbul feribot yolculugunuzu erisilebilir kilar.', ikon: '🚢' },

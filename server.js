@@ -152,7 +152,14 @@ io.on('connection', (soket) => {
         console.log('Bir cihaz ayrildi. ID:', soket.id);
     });
 });
-
+app.post('/reset-gemi', (req, res) => {
+    gemiKonumu.enlem = baslangicKonumu.enlem;
+    gemiKonumu.boylam = baslangicKonumu.boylam;
+    suankiHedefIndex = 0;
+    varisBildirimiGonderildi = false;
+    console.log('GEMI SIFIRLANDI');
+    res.json({ tamam: true });
+});
 app.get('/tum-noktalar', async (req, res) => {
     try {
         const sonuc = await havuz.query(

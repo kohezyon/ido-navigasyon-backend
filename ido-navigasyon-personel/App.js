@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { io } from 'socket.io-client';
 
-const SUNUCU_ADRESI = 'http://192.168.1.115:3000';
+const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';
 
 export default function App() {
   const [baglantiDurumu, setBaglantiDurumu] = useState('Baglaniyor...');

@@ -1,1 +1,1 @@
-const soket = io('http://192.168.1.105:3000');
+const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';
