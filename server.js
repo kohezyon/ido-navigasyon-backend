@@ -12,13 +12,9 @@ const io = new Server(sunucu, {
 });
 
 const havuz = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'ido_navigasyon',
-    password: '0000',
-    port: 5432,
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
 });
-
 const HAVA_DURUMU_API_ANAHTARI = 'fdb714a3e5aca6add0846116df0d6129';
 
 let gemiKonumu = {
