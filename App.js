@@ -1,1 +1,0 @@
-const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';

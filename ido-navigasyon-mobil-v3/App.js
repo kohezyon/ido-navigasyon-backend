@@ -14,7 +14,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';
+const SUNUCU_ADRESI = process.env.EXPO_PUBLIC_SUNUCU_ADRESI || 'https://ido-navigasyon-backend.onrender.com';
 
 const TANITIM_EKRANLARI = [
   { baslik: 'Hos Geldiniz', metin: 'IDO Engelsiz Navigasyon, Yalova-Istanbul feribot yolculugunuzu erisilebilir kilar.', ikon: '🚢' },
@@ -127,6 +127,7 @@ export default function App() {
 
   useEffect(() => {
     Notifications.requestPermissionsAsync();
+    fetch(SUNUCU_ADRESI + '/reset-gemi', { method: 'POST' }).catch(() => {});
 
     fetch(SUNUCU_ADRESI + '/tum-noktalar')
       .then((yanit) => yanit.json())

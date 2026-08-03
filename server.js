@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -13,9 +15,10 @@ const io = new Server(sunucu, {
 
 const havuz = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: true }
 });
-const HAVA_DURUMU_API_ANAHTARI = 'fdb714a3e5aca6add0846116df0d6129';
+const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
+const PERSONEL_ANAHTARI = process.env.PERSONEL_ANAHTARI;
 
 let gemiKonumu = {
     enlem: 40.6500,
@@ -127,6 +130,10 @@ io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
     soket.on('acil-durum-baslat', (bilgi) => {
+        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+            console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
+            return;
+        }
         console.log('ACIL DURUM BASLATILDI:', bilgi);
         io.emit('acil-durum-uyarisi', {
             mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
@@ -136,6 +143,10 @@ io.on('connection', (soket) => {
     });
 
     soket.on('acil-durum-bitir', (bilgi) => {
+        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+            console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
+            return;
+        }
         console.log('ACIL DURUM BITIRILDI:', bilgi);
         io.emit('acil-durum-bitti', {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
@@ -144,6 +155,10 @@ io.on('connection', (soket) => {
     });
 
     soket.on('yolcu-sayisi-guncelle', (bilgi) => {
+        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+            console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            return;
+        }
         console.log('YOLCU SAYISI GUNCELLENDI:', bilgi);
         io.emit('yolcu-sayisi-yayin', bilgi);
     });
@@ -199,7 +214,7 @@ app.post('/geri-bildirim', (req, res) => {
 
 setInterval(konumKontrolVeYayinla, 1000);
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 sunucu.listen(PORT, () => {
     console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
 });

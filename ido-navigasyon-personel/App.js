@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { io } from 'socket.io-client';
 
-const SUNUCU_ADRESI = 'https://ido-navigasyon-backend.onrender.com';
+const SUNUCU_ADRESI = process.env.EXPO_PUBLIC_SUNUCU_ADRESI || 'https://ido-navigasyon-backend.onrender.com';
+const PERSONEL_ANAHTARI = process.env.EXPO_PUBLIC_PERSONEL_ANAHTARI || '';
 
 export default function App() {
   const [baglantiDurumu, setBaglantiDurumu] = useState('Baglaniyor...');
@@ -37,7 +38,7 @@ export default function App() {
           text: 'Evet, Baslat',
           style: 'destructive',
           onPress: () => {
-            soketRef.current.emit('acil-durum-baslat', { gemi_adi: 'Yalova Feribotu 1' });
+            soketRef.current.emit('acil-durum-baslat', { gemi_adi: 'Yalova Feribotu 1', anahtar: PERSONEL_ANAHTARI });
             setAcilDurumAktif(true);
           },
         },
@@ -54,7 +55,7 @@ export default function App() {
         {
           text: 'Evet, Bitir',
           onPress: () => {
-            soketRef.current.emit('acil-durum-bitir', { gemi_adi: 'Yalova Feribotu 1' });
+            soketRef.current.emit('acil-durum-bitir', { gemi_adi: 'Yalova Feribotu 1', anahtar: PERSONEL_ANAHTARI });
             setAcilDurumAktif(false);
           },
         },
@@ -66,7 +67,7 @@ export default function App() {
     const yeniSayi = Math.max(0, yolcuSayisi + fark);
     setYolcuSayisi(yeniSayi);
     if (soketRef.current) {
-      soketRef.current.emit('yolcu-sayisi-guncelle', { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1' });
+      soketRef.current.emit('yolcu-sayisi-guncelle', { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1', anahtar: PERSONEL_ANAHTARI });
     }
   }
 
