@@ -497,7 +497,7 @@ export default function App() {
                   accessibilityLabel={nokta.ad + (acikDurakIndex === index ? ' kapat' : ' detaylarini ac')}
                   style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
                 >
-                  <View style={[styles.tipNoktasi, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} />
+                  <View style={[styles.tipNoktasi, { backgroundColor: tipRengi(nokta.tip).kenar }]} />
                   <Text style={[styles.durakBaslikYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{nokta.ad}</Text>
                   <Text style={{ color: renkler.etiket, fontSize: 16 * boyutCarpani }}>{acikDurakIndex === index ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
@@ -514,13 +514,13 @@ export default function App() {
               {acikDurakIndex === index && (
                 <View style={{ marginTop: 8, paddingLeft: 4 }}>
                   <Text style={[styles.kartAciklama, { color: karanlikMod ? '#C7D3DD' : '#333', fontSize: 14 * boyutCarpani }]}>{nokta.aciklama}</Text>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.video_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).kenar }]} onPress={() => videoAc(nokta.video_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Isaret Dili</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.sesli_anlatim_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).kenar }]} onPress={() => videoAc(nokta.sesli_anlatim_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Sesli Anlatim</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.videolu_anlatim_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).kenar }]} onPress={() => videoAc(nokta.videolu_anlatim_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Videolu Anlatim</Text>
                   </TouchableOpacity>
                 </View>
@@ -715,13 +715,13 @@ const styles = StyleSheet.create({
   ozetKartYaziKucuk: { color: '#CDE3F0', fontSize: 12, fontWeight: 'bold' },
   ozetKartBuyukYazi: { color: 'white', fontSize: 22, fontWeight: 'bold' },
   ozetKartAltYazi: { color: '#CDE3F0', fontSize: 14, marginTop: 6 },
-  kutu: { padding: 16, borderRadius: 10, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#1E6091' },
+  kutu: { padding: 16, borderRadius: 10, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: marka.mavi.taban },
   etiket: { fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 6 },
   degerYazi: { fontWeight: '500' },
   satirIci: { flexDirection: 'row', alignItems: 'center' },
   durumNoktasi: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   durakSatiri: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#1E6091', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: marka.mavi.taban, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   durakNumarasiYazi: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   durakYazi: {},
   bilgiKarti: { marginTop: 6, padding: 20, borderRadius: 12, borderWidth: 2 },
