@@ -588,7 +588,7 @@ export default function App() {
             <Text style={[styles.ayarYazi, { color: renkler.yazi, marginTop: 20 }]}>Yazi Boyutu</Text>
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
               {['kucuk', 'orta', 'buyuk'].map((boyut) => (
-                <TouchableOpacity key={boyut} onPress={() => setYaziBoyutu(boyut)} style={[styles.boyutButon, { backgroundColor: yaziBoyutu === boyut ? '#0D3B66' : '#E0E0E0' }]}>
+                <TouchableOpacity key={boyut} onPress={() => setYaziBoyutu(boyut)} style={[styles.boyutButon, { backgroundColor: yaziBoyutu === boyut ? marka.mavi.taban : '#E0E0E0' }]}>
                   <Text style={{ color: yaziBoyutu === boyut ? 'white' : '#333', fontWeight: 'bold' }}>
                     {boyut === 'kucuk' ? 'Kucuk' : boyut === 'orta' ? 'Orta' : 'Buyuk'}
                   </Text>
@@ -596,7 +596,7 @@ export default function App() {
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.kapatButon, { backgroundColor: '#5B7A8F', marginTop: 10 }]}
+              style={[styles.kapatButon, { backgroundColor: renkler.etiket, marginTop: 10 }]}
               onPress={() => {
                 setAyarlarAcik(false);
                 setTanitimIndex(0);
@@ -654,7 +654,7 @@ export default function App() {
       </Modal>
 
       <Modal visible={tanitimYuklendi && tanitimGoster} animationType="fade" transparent={false}>
-        <View style={[styles.tanitimEkrani, { backgroundColor: '#0D3B66' }]}>
+        <View style={[styles.tanitimEkrani, { backgroundColor: koyuTema.zemin }]}>
           <View style={styles.tanitimIcerik}>
             <Text style={styles.tanitimIkon}>{TANITIM_EKRANLARI[tanitimIndex].ikon}</Text>
             <Text style={styles.tanitimBaslik}>{TANITIM_EKRANLARI[tanitimIndex].baslik}</Text>
@@ -667,7 +667,7 @@ export default function App() {
                 key={index}
                 style={[
                   styles.tanitimNokta,
-                  { backgroundColor: index === tanitimIndex ? '#4FA3D9' : 'rgba(255,255,255,0.3)' },
+                  { backgroundColor: index === tanitimIndex ? marka.mavi.taban : 'rgba(255,255,255,0.3)' },
                 ]}
               />
             ))}
@@ -704,9 +704,9 @@ const styles = StyleSheet.create({
   harita: { height: 260, width: '100%' },
   govde: { flex: 1 },
   icerik: { padding: 20, paddingBottom: 60 },
-  acilKutu: { backgroundColor: '#B71C1C', padding: 16, borderRadius: 10, marginBottom: 16 },
+  acilKutu: { backgroundColor: marka.kirmizi.taban, padding: 16, borderRadius: 10, marginBottom: 16 },
   acilYazi: { color: '#FFFFFF', fontWeight: 'bold' },
-  varisKutu: { backgroundColor: '#2E7D32', padding: 16, borderRadius: 10, marginBottom: 16, alignItems: 'center' },
+  varisKutu: { backgroundColor: marka.yesil.metinAcikMod, padding: 16, borderRadius: 10, marginBottom: 16, alignItems: 'center' },
   varisYazi: { color: 'white', fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   varisKapatYazi: { color: '#C8E6C9', fontWeight: 'bold', textDecorationLine: 'underline' },
   ozetKart: { borderRadius: 14, padding: 20, marginBottom: 16 },
@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
   ayarSatiri: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ayarYazi: { fontSize: 16, fontWeight: '500' },
   boyutButon: { padding: 12, borderRadius: 8, marginRight: 10 },
-  kapatButon: { backgroundColor: '#0D3B66', padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 24 },
+  kapatButon: { backgroundColor: marka.mavi.taban, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 24 },
   kapatButonYazi: { color: 'white', fontWeight: 'bold' },
   sssSoru: { fontWeight: 'bold', fontSize: 15, marginTop: 16 },
   sssCevap: { fontSize: 14, marginTop: 4, lineHeight: 20 },
@@ -754,6 +754,6 @@ const styles = StyleSheet.create({
   tanitimNokta: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
   tanitimAltButonlar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   tanitimGecYazi: { color: '#CDE3F0', fontSize: 16 },
-  tanitimIleriButon: { backgroundColor: '#4FA3D9', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 10 },
+  tanitimIleriButon: { backgroundColor: marka.mavi.taban, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 10 },
   tanitimIleriYazi: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });
