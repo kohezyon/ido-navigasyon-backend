@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d1b2a"
+      "backgroundColor": "#0D3B66"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0d1b2a"
+        "backgroundColor": "#0D3B66"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.kohezyon.idonavigasyonmobilv3"
