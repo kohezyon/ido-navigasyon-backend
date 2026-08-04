@@ -270,10 +270,10 @@ export default function App() {
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <style>
         body { margin: 0; padding: 0; }
-        #harita { width: 100vw; height: 100vh; background: ${karanlikMod ? '#0B1520' : '#E5F0F8'}; }
+        #harita { width: 100vw; height: 100vh; background: ${karanlikMod ? haritaRenkleri.haritaZeminKoyu : haritaRenkleri.haritaZeminAcik}; }
         .leaflet-popup-content-wrapper { border-radius: 10px; }
-        .ada-popup .leaflet-popup-content-wrapper { background: #FFF4E5; color: #C67A00; font-weight: bold; }
-        .batik-popup .leaflet-popup-content-wrapper { background: #E5F0F8; color: #1E6091; font-weight: bold; }
+        .ada-popup .leaflet-popup-content-wrapper { background: ${haritaRenkleri.adaPopupArkaplan}; color: ${marka.turuncu.metinAcikMod}; font-weight: bold; }
+        .batik-popup .leaflet-popup-content-wrapper { background: ${haritaRenkleri.batikPopupArkaplan}; color: ${marka.kirmizi.metinAcikMod}; font-weight: bold; }
       </style>
     </head>
     <body>
@@ -291,17 +291,17 @@ export default function App() {
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         const gemiIkonu = L.divIcon({
-          html: '<svg width="46" height="30" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg"><ellipse cx="23" cy="27" rx="21" ry="2" fill="rgba(0,0,0,0.25)"/><path d="M6 20 L40 20 L35 27 L11 27 Z" fill="#FFFFFF" stroke="#0D3B66" stroke-width="1.5"/><rect x="14" y="10" width="18" height="10" fill="#0D3B66" rx="1"/><rect x="16" y="12" width="4" height="4" fill="#4FA3D9"/><rect x="22" y="12" width="4" height="4" fill="#4FA3D9"/><text x="23" y="18" font-size="6" font-weight="bold" fill="white" text-anchor="middle">IDO</text><rect x="21" y="3" width="4" height="8" fill="#C67A00" rx="1"/></svg>',
+          html: '<svg width="46" height="30" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg"><ellipse cx="23" cy="27" rx="21" ry="2" fill="rgba(0,0,0,0.25)"/><path d="M6 20 L40 20 L35 27 L11 27 Z" fill="${haritaRenkleri.gemiGovde}" stroke="${haritaRenkleri.gemiCerceve}" stroke-width="1.5"/><rect x="14" y="10" width="18" height="10" fill="${haritaRenkleri.gemiKabin}" rx="1"/><rect x="16" y="12" width="4" height="4" fill="${haritaRenkleri.gemiPencere}"/><rect x="22" y="12" width="4" height="4" fill="${haritaRenkleri.gemiPencere}"/><text x="23" y="18" font-size="6" font-weight="bold" fill="white" text-anchor="middle">IDO</text><rect x="21" y="3" width="4" height="8" fill="${haritaRenkleri.gemiBaca}" rx="1"/></svg>',
           className: '', iconSize: [46, 30], iconAnchor: [23, 27]
         });
         let gemiMarker = L.marker([40.65, 29.26], { icon: gemiIkonu }).addTo(map);
 
         const adaIkonu = L.divIcon({
-          html: '<div style="background:#C67A00;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          html: '<div style="background:${haritaRenkleri.ada};width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
           className: '', iconSize: [16, 16]
         });
         const batikIkonu = L.divIcon({
-          html: '<div style="background:#1E6091;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          html: '<div style="background:${haritaRenkleri.batik};width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
           className: '', iconSize: [16, 16]
         });
 
@@ -314,7 +314,7 @@ export default function App() {
         L.marker([40.7200, 29.1600], { icon: batikIkonu }).addTo(map)
           .bindPopup('<b>Bozuk Gemi Batigi</b>', { className: 'batik-popup' });
 
-        let rotaCizgisi = L.polyline([], { color: '#0D3B66', weight: 3, opacity: 0.6 }).addTo(map);
+        let rotaCizgisi = L.polyline([], { color: '${marka.mavi.taban}', weight: 3, opacity: 0.6 }).addTo(map);
 
         function guncelleGemi(enlem, boylam, rotaNoktalari) {
           gemiMarker.setLatLng([enlem, boylam]);
