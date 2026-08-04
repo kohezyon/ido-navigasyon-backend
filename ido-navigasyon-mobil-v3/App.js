@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { marka, koyuTema, temaSec, tipRenkleri, haritaRenkleri } from './theme';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -248,19 +249,16 @@ export default function App() {
   }, []);
 
   function tipRengi(tip) {
-    if (karanlikMod) {
-      if (tip === 'ada') return { arkaplan: '#4A3300', kenar: '#E0A030', yazi: '#E0A030' };
-      if (tip === 'batik') return { arkaplan: '#0F2E45', kenar: '#4FA3D9', yazi: '#4FA3D9' };
-      return { arkaplan: '#1B2733', kenar: '#4FA3D9', yazi: '#4FA3D9' };
-    }
-    if (tip === 'ada') return { arkaplan: '#FFF4E5', kenar: '#C67A00', yazi: '#C67A00' };
-    if (tip === 'batik') return { arkaplan: '#E5F0F8', kenar: '#1E6091', yazi: '#1E6091' };
-    return { arkaplan: '#F4F8FB', kenar: '#0D3B66', yazi: '#0D3B66' };
+    return tipRenkleri(tip, karanlikMod);
   }
 
-  const renkler = karanlikMod
-    ? { govdeArkaplan: '#0B1520', kutuArkaplan: '#1B2733', yazi: '#E8EEF3', etiket: '#7F97AB' }
-    : { govdeArkaplan: '#F4F8FB', kutuArkaplan: '#FFFFFF', yazi: '#0D3B66', etiket: '#5B7A8F' };
+  const tema = temaSec(karanlikMod);
+  const renkler = {
+    govdeArkaplan: tema.zemin,
+    kutuArkaplan: tema.yuzey,
+    yazi: tema.yaziBirincil,
+    etiket: tema.yaziIkincil,
+  };
 
   const boyutCarpani = yaziBoyutu === 'kucuk' ? 0.85 : yaziBoyutu === 'buyuk' ? 1.3 : 1;
 
@@ -272,10 +270,10 @@ export default function App() {
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <style>
         body { margin: 0; padding: 0; }
-        #harita { width: 100vw; height: 100vh; background: ${karanlikMod ? '#0B1520' : '#E5F0F8'}; }
+        #harita { width: 100vw; height: 100vh; background: ${karanlikMod ? haritaRenkleri.haritaZeminKoyu : haritaRenkleri.haritaZeminAcik}; }
         .leaflet-popup-content-wrapper { border-radius: 10px; }
-        .ada-popup .leaflet-popup-content-wrapper { background: #FFF4E5; color: #C67A00; font-weight: bold; }
-        .batik-popup .leaflet-popup-content-wrapper { background: #E5F0F8; color: #1E6091; font-weight: bold; }
+        .ada-popup .leaflet-popup-content-wrapper { background: ${haritaRenkleri.adaPopupArkaplan}; color: ${marka.turuncu.metinAcikMod}; font-weight: bold; }
+        .batik-popup .leaflet-popup-content-wrapper { background: ${haritaRenkleri.batikPopupArkaplan}; color: ${marka.kirmizi.metinAcikMod}; font-weight: bold; }
       </style>
     </head>
     <body>
@@ -293,17 +291,17 @@ export default function App() {
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         const gemiIkonu = L.divIcon({
-          html: '<svg width="46" height="30" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg"><ellipse cx="23" cy="27" rx="21" ry="2" fill="rgba(0,0,0,0.25)"/><path d="M6 20 L40 20 L35 27 L11 27 Z" fill="#FFFFFF" stroke="#0D3B66" stroke-width="1.5"/><rect x="14" y="10" width="18" height="10" fill="#0D3B66" rx="1"/><rect x="16" y="12" width="4" height="4" fill="#4FA3D9"/><rect x="22" y="12" width="4" height="4" fill="#4FA3D9"/><text x="23" y="18" font-size="6" font-weight="bold" fill="white" text-anchor="middle">IDO</text><rect x="21" y="3" width="4" height="8" fill="#C67A00" rx="1"/></svg>',
+          html: '<svg width="46" height="30" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg"><ellipse cx="23" cy="27" rx="21" ry="2" fill="rgba(0,0,0,0.25)"/><path d="M6 20 L40 20 L35 27 L11 27 Z" fill="${haritaRenkleri.gemiGovde}" stroke="${haritaRenkleri.gemiCerceve}" stroke-width="1.5"/><rect x="14" y="10" width="18" height="10" fill="${haritaRenkleri.gemiKabin}" rx="1"/><rect x="16" y="12" width="4" height="4" fill="${haritaRenkleri.gemiPencere}"/><rect x="22" y="12" width="4" height="4" fill="${haritaRenkleri.gemiPencere}"/><text x="23" y="18" font-size="6" font-weight="bold" fill="white" text-anchor="middle">IDO</text><rect x="21" y="3" width="4" height="8" fill="${haritaRenkleri.gemiBaca}" rx="1"/></svg>',
           className: '', iconSize: [46, 30], iconAnchor: [23, 27]
         });
         let gemiMarker = L.marker([40.65, 29.26], { icon: gemiIkonu }).addTo(map);
 
         const adaIkonu = L.divIcon({
-          html: '<div style="background:#C67A00;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          html: '<div style="background:${haritaRenkleri.ada};width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
           className: '', iconSize: [16, 16]
         });
         const batikIkonu = L.divIcon({
-          html: '<div style="background:#1E6091;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          html: '<div style="background:${haritaRenkleri.batik};width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
           className: '', iconSize: [16, 16]
         });
 
@@ -316,7 +314,7 @@ export default function App() {
         L.marker([40.7200, 29.1600], { icon: batikIkonu }).addTo(map)
           .bindPopup('<b>Bozuk Gemi Batigi</b>', { className: 'batik-popup' });
 
-        let rotaCizgisi = L.polyline([], { color: '#0D3B66', weight: 3, opacity: 0.6 }).addTo(map);
+        let rotaCizgisi = L.polyline([], { color: '${marka.mavi.taban}', weight: 3, opacity: 0.6 }).addTo(map);
 
         function guncelleGemi(enlem, boylam, rotaNoktalari) {
           gemiMarker.setLatLng([enlem, boylam]);
@@ -331,14 +329,14 @@ export default function App() {
   `;
 
   return (
-    <View style={[styles.disKapsayici, { backgroundColor: karanlikMod ? '#0B1520' : '#0D3B66' }]}>
-      <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
+    <View style={[styles.disKapsayici, { backgroundColor: koyuTema.zemin }]}>
+      <StatusBar barStyle="light-content" backgroundColor={koyuTema.zemin} />
 
-      <View style={[styles.ustCubuk, acilDurum && styles.ustCubukAcil, karanlikMod && !acilDurum && { backgroundColor: '#0B1520', borderBottomColor: '#1B2733' }]}>
+      <View style={[styles.ustCubuk, acilDurum && styles.ustCubukAcil]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={[styles.ustCubukBaslik, { fontSize: 20 * boyutCarpani }]}>IDO Engelsiz Navigasyon</Text>
-            <Text style={[styles.ustCubukAltBaslik, { fontSize: 13 * boyutCarpani }]}>
+            <Text style={[styles.ustCubukAltBaslik, { fontSize: 13 * boyutCarpani, color: acilDurum ? '#FFFFFF' : undefined }]}>
               {acilDurum ? 'ACIL DURUM' : 'Yalova - Istanbul Hatti'}
             </Text>
           </View>
@@ -385,7 +383,7 @@ export default function App() {
         )}
 
         <View
-          style={[styles.ozetKart, { backgroundColor: acilDurum ? '#B71C1C' : (karanlikMod ? '#12324D' : '#0D3B66') }]}
+          style={[styles.ozetKart, { backgroundColor: acilDurum ? marka.kirmizi.metinAcikMod : tema.ozetKartArkaplan }]}
           accessible={true}
           accessibilityLabel={
             'Ozet: Baglanti ' + baglantiDurumu +
@@ -395,7 +393,7 @@ export default function App() {
           }
         >
           <View style={styles.ozetSatir}>
-            <View style={[styles.ozetNokta, { backgroundColor: baglantiDurumu === 'Bagli' ? '#4CAF50' : '#EF5350' }]} />
+            <View style={[styles.ozetNokta, { backgroundColor: baglantiDurumu === 'Bagli' ? marka.yesil.taban : marka.kirmizi.taban }]} />
             <Text style={styles.ozetKartYaziKucuk}>{baglantiDurumu === 'Bagli' ? 'Bagli' : 'Baglanti Yok'}</Text>
           </View>
 
@@ -419,7 +417,9 @@ export default function App() {
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]} accessible={true} accessibilityLabel={'Baglanti durumu: ' + baglantiDurumu}>
           <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>BAGLANTI DURUMU</Text>
           <View style={styles.satirIci}>
-            <View style={[styles.durumNoktasi, { backgroundColor: baglantiDurumu === 'Bagli' ? '#2E7D32' : '#C62828' }]} />
+            <View style={[styles.durumNoktasi, { backgroundColor: baglantiDurumu === 'Bagli'
+              ? (karanlikMod ? marka.yesil.taban : marka.yesil.metinAcikMod)
+              : (karanlikMod ? marka.kirmizi.taban : marka.kirmizi.metinAcikMod) }]} />
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{baglantiDurumu}</Text>
           </View>
         </View>
@@ -462,13 +462,13 @@ export default function App() {
           <View style={[styles.bilgiKarti, { backgroundColor: tipRengi(gosterilecekKart.tip).arkaplan, borderColor: tipRengi(gosterilecekKart.tip).kenar }]}>
             <Text style={[styles.kartBaslik, { color: tipRengi(gosterilecekKart.tip).yazi, fontSize: 19 * boyutCarpani }]}>{gosterilecekKart.nokta_adi}</Text>
             <Text style={[styles.kartAciklama, { color: karanlikMod ? '#C7D3DD' : '#333', fontSize: 15 * boyutCarpani }]}>{gosterilecekKart.aciklama}</Text>
-            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).yazi }]} onPress={() => videoAc(gosterilecekKart.video_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin isaret dili videosunu ac'}>
+            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).butonArkaplan }]} onPress={() => videoAc(gosterilecekKart.video_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin isaret dili videosunu ac'}>
               <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Isaret Dili</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).yazi }]} onPress={() => videoAc(gosterilecekKart.sesli_anlatim_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin sesli anlatimi ac'}>
+            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).butonArkaplan }]} onPress={() => videoAc(gosterilecekKart.sesli_anlatim_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin sesli anlatimi ac'}>
               <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Sesli Anlatim</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).yazi }]} onPress={() => videoAc(gosterilecekKart.videolu_anlatim_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin videolu anlatimi ac'}>
+            <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(gosterilecekKart.tip).butonArkaplan }]} onPress={() => videoAc(gosterilecekKart.videolu_anlatim_url)} accessibilityRole="button" accessibilityLabel={gosterilecekKart.nokta_adi + ' icin videolu anlatimi ac'}>
               <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Videolu Anlatim</Text>
             </TouchableOpacity>
           </View>
@@ -499,7 +499,7 @@ export default function App() {
                   accessibilityLabel={nokta.ad + (acikDurakIndex === index ? ' kapat' : ' detaylarini ac')}
                   style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
                 >
-                  <View style={[styles.tipNoktasi, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} />
+                  <View style={[styles.tipNoktasi, { backgroundColor: tipRengi(nokta.tip).kenar }]} />
                   <Text style={[styles.durakBaslikYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{nokta.ad}</Text>
                   <Text style={{ color: renkler.etiket, fontSize: 16 * boyutCarpani }}>{acikDurakIndex === index ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
@@ -516,13 +516,13 @@ export default function App() {
               {acikDurakIndex === index && (
                 <View style={{ marginTop: 8, paddingLeft: 4 }}>
                   <Text style={[styles.kartAciklama, { color: karanlikMod ? '#C7D3DD' : '#333', fontSize: 14 * boyutCarpani }]}>{nokta.aciklama}</Text>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.video_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).butonArkaplan }]} onPress={() => videoAc(nokta.video_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Isaret Dili</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.sesli_anlatim_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).butonArkaplan }]} onPress={() => videoAc(nokta.sesli_anlatim_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Sesli Anlatim</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: nokta.tip === 'ada' ? '#C67A00' : '#1E6091' }]} onPress={() => videoAc(nokta.videolu_anlatim_url)}>
+                  <TouchableOpacity style={[styles.kucukButon, { backgroundColor: tipRengi(nokta.tip).butonArkaplan }]} onPress={() => videoAc(nokta.videolu_anlatim_url)}>
                     <Text style={[styles.kucukButonYazi, { fontSize: 14 * boyutCarpani }]}>Videolu Anlatim</Text>
                   </TouchableOpacity>
                 </View>
@@ -558,7 +558,7 @@ export default function App() {
           ) : (
             <View>
               <TextInput
-                style={[styles.notAlani, { color: renkler.yazi, borderColor: renkler.etiket }]}
+                style={[styles.notAlani, { color: renkler.yazi, borderColor: tema.kenarlik }]}
                 placeholder="Eklemek istediginiz bir not var mi? (istege bagli)"
                 placeholderTextColor={renkler.etiket}
                 value={geriBildirimNotu}
@@ -590,7 +590,7 @@ export default function App() {
             <Text style={[styles.ayarYazi, { color: renkler.yazi, marginTop: 20 }]}>Yazi Boyutu</Text>
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
               {['kucuk', 'orta', 'buyuk'].map((boyut) => (
-                <TouchableOpacity key={boyut} onPress={() => setYaziBoyutu(boyut)} style={[styles.boyutButon, { backgroundColor: yaziBoyutu === boyut ? '#0D3B66' : '#E0E0E0' }]}>
+                <TouchableOpacity key={boyut} onPress={() => setYaziBoyutu(boyut)} style={[styles.boyutButon, { backgroundColor: yaziBoyutu === boyut ? marka.mavi.metinAcikMod : '#E0E0E0' }]}>
                   <Text style={{ color: yaziBoyutu === boyut ? 'white' : '#333', fontWeight: 'bold' }}>
                     {boyut === 'kucuk' ? 'Kucuk' : boyut === 'orta' ? 'Orta' : 'Buyuk'}
                   </Text>
@@ -598,7 +598,7 @@ export default function App() {
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.kapatButon, { backgroundColor: '#5B7A8F', marginTop: 10 }]}
+              style={[styles.kapatButon, { backgroundColor: renkler.etiket, marginTop: 10 }]}
               onPress={() => {
                 setAyarlarAcik(false);
                 setTanitimIndex(0);
@@ -656,7 +656,7 @@ export default function App() {
       </Modal>
 
       <Modal visible={tanitimYuklendi && tanitimGoster} animationType="fade" transparent={false}>
-        <View style={[styles.tanitimEkrani, { backgroundColor: '#0D3B66' }]}>
+        <View style={[styles.tanitimEkrani, { backgroundColor: koyuTema.zemin }]}>
           <View style={styles.tanitimIcerik}>
             <Text style={styles.tanitimIkon}>{TANITIM_EKRANLARI[tanitimIndex].ikon}</Text>
             <Text style={styles.tanitimBaslik}>{TANITIM_EKRANLARI[tanitimIndex].baslik}</Text>
@@ -669,7 +669,7 @@ export default function App() {
                 key={index}
                 style={[
                   styles.tanitimNokta,
-                  { backgroundColor: index === tanitimIndex ? '#4FA3D9' : 'rgba(255,255,255,0.3)' },
+                  { backgroundColor: index === tanitimIndex ? marka.mavi.taban : 'rgba(255,255,255,0.3)' },
                 ]}
               />
             ))}
@@ -693,22 +693,22 @@ export default function App() {
 
 const styles = StyleSheet.create({
   disKapsayici: { flex: 1 },
-  ustCubuk: { backgroundColor: '#0D3B66', paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: '#1E6091' },
-  ustCubukAcil: { backgroundColor: '#B71C1C', borderBottomColor: '#7F0000' },
+  ustCubuk: { backgroundColor: koyuTema.zemin, paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: marka.mavi.taban },
+  ustCubukAcil: { backgroundColor: marka.kirmizi.metinAcikMod, borderBottomColor: marka.kirmizi.metinAcikMod },
   ustCubukBaslik: { color: '#FFFFFF', fontWeight: 'bold' },
   ustCubukAltBaslik: { color: '#CDE3F0', marginTop: 4 },
   temaButon: { padding: 8 },
   temaButonYazi: { fontSize: 20 },
   ilerlemeDisKutu: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, marginTop: 14, overflow: 'hidden' },
-  ilerlemeIcKutu: { height: 8, backgroundColor: '#4FA3D9', borderRadius: 4 },
+  ilerlemeIcKutu: { height: 8, backgroundColor: marka.mavi.taban, borderRadius: 4 },
   ilerlemeYazi: { color: '#CDE3F0', fontSize: 11, marginTop: 6 },
   haritaKapsayici: { height: 260, width: '100%' },
   harita: { height: 260, width: '100%' },
   govde: { flex: 1 },
   icerik: { padding: 20, paddingBottom: 60 },
-  acilKutu: { backgroundColor: '#B71C1C', padding: 16, borderRadius: 10, marginBottom: 16 },
+  acilKutu: { backgroundColor: marka.kirmizi.metinAcikMod, padding: 16, borderRadius: 10, marginBottom: 16 },
   acilYazi: { color: '#FFFFFF', fontWeight: 'bold' },
-  varisKutu: { backgroundColor: '#2E7D32', padding: 16, borderRadius: 10, marginBottom: 16, alignItems: 'center' },
+  varisKutu: { backgroundColor: marka.yesil.metinAcikMod, padding: 16, borderRadius: 10, marginBottom: 16, alignItems: 'center' },
   varisYazi: { color: 'white', fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   varisKapatYazi: { color: '#C8E6C9', fontWeight: 'bold', textDecorationLine: 'underline' },
   ozetKart: { borderRadius: 14, padding: 20, marginBottom: 16 },
@@ -717,13 +717,13 @@ const styles = StyleSheet.create({
   ozetKartYaziKucuk: { color: '#CDE3F0', fontSize: 12, fontWeight: 'bold' },
   ozetKartBuyukYazi: { color: 'white', fontSize: 22, fontWeight: 'bold' },
   ozetKartAltYazi: { color: '#CDE3F0', fontSize: 14, marginTop: 6 },
-  kutu: { padding: 16, borderRadius: 10, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#1E6091' },
+  kutu: { padding: 16, borderRadius: 10, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: marka.mavi.taban },
   etiket: { fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 6 },
   degerYazi: { fontWeight: '500' },
   satirIci: { flexDirection: 'row', alignItems: 'center' },
   durumNoktasi: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   durakSatiri: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#1E6091', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: marka.mavi.metinAcikMod, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   durakNumarasiYazi: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   durakYazi: {},
   bilgiKarti: { marginTop: 6, padding: 20, borderRadius: 12, borderWidth: 2 },
@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
   ayarSatiri: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ayarYazi: { fontSize: 16, fontWeight: '500' },
   boyutButon: { padding: 12, borderRadius: 8, marginRight: 10 },
-  kapatButon: { backgroundColor: '#0D3B66', padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 24 },
+  kapatButon: { backgroundColor: marka.mavi.metinAcikMod, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 24 },
   kapatButonYazi: { color: 'white', fontWeight: 'bold' },
   sssSoru: { fontWeight: 'bold', fontSize: 15, marginTop: 16 },
   sssCevap: { fontSize: 14, marginTop: 4, lineHeight: 20 },
@@ -756,6 +756,6 @@ const styles = StyleSheet.create({
   tanitimNokta: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
   tanitimAltButonlar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   tanitimGecYazi: { color: '#CDE3F0', fontSize: 16 },
-  tanitimIleriButon: { backgroundColor: '#4FA3D9', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 10 },
+  tanitimIleriButon: { backgroundColor: marka.mavi.metinAcikMod, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 10 },
   tanitimIleriYazi: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });

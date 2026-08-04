@@ -13,7 +13,7 @@
 - Marka renkleri sabit ve tam olarak şu hex değerleridir: mavi `#4FA8D8`, turuncu `#F2A65A`, kırmızı `#E85C5C`, yeşil `#8FBF9F`, koyu lacivert zemin `#0d1b2a`.
 - **Ada rengi ayrımı:** genel UI (kartlar, liste noktaları, favoriler bağlamı, butonlar) → **yeşil**. Harita üzerindeki ada marker ikonu → **turuncu**. Bu bilinçli bir ayrımdır, hata değildir.
 - **Batık rengi:** hem genel UI hem harita marker'ı → **kırmızı** (tek renk, ayrım yok).
-- Projede otomatik test altyapısı (jest vb.) yok. Doğrulama üç şekilde yapılır: (1) `node -e` ile syntax/shape kontrolü, (2) `npx expo export --platform web` ile derleme kontrolü, (3) `npx expo start --web` ile manuel görsel inceleme (açık/koyu mod).
+- Projede otomatik test altyapısı (jest vb.) yok. Bu çalışma ortamında tarayıcı/emülatör de yok (`react-dom`/`react-native-web` kurulu değil, `expo start --web` kullanılamaz). Doğrulama iki şekilde yapılır: (1) `node -e` ile syntax/shape kontrolü, (2) `npx expo export --platform android` ile derleme/bundle kontrolü. "Görsel doğrulama" adımları, diff'i okuyup her renk token'ının doğru JSX/StyleSheet/HTML konumuna uygulandığını teyit eden bir **kod incelemesi** olarak yapılır — gerçek bir cihazda/emülatörde çalıştırma değil. Kullanıcı, tüm task'lar tamamlandıktan sonra uygulamayı kendi cihazında/emülatöründe çalıştırıp son görsel onayı ayrıca verecektir.
 - Mevcut değişken/fonksiyon isimleri (`renkler`, `tipRengi`, `tema`) App.js içinde korunur; sadece tanımları değişir, çağrı yerleri dokunulmadan çalışmaya devam eder.
 - Saf destekleyici/tint metin renkleri (örn. `#CDE3F0`, `#C8E6C9`, `#C7D3DD`) marka renk ailesine ait olmadığından kapsam dışıdır, değiştirilmez.
 - `app.json` değişikliği native build (EAS) gerektirir; Expo Go/JS-only reload ile görünmez olması beklenen bir durumdur, hata değildir.
@@ -296,17 +296,13 @@ import { marka, koyuTema, acikTema, temaSec, tipRenkleri, haritaRenkleri } from 
 
 Run:
 ```bash
-npx expo export --platform web
+npx expo export --platform android
 ```
 Expected: Komut hatasız (exit 0) tamamlanır, `dist/` klasörü oluşur. Herhangi bir "Unable to resolve module" veya syntax hatası olmamalı.
 
-- [ ] **Step 8: Görsel doğrulama**
+- [ ] **Step 8: Kod incelemesiyle doğrulama**
 
-Run (arka planda başlat, tarayıcıda kontrol et, sonra durdur):
-```bash
-npx expo start --web
-```
-Tarayıcıda: üst çubuğun koyu lacivert (`#0d1b2a`) olduğunu, ilerleme çubuğunun mavi (`#4FA8D8`) dolduğunu, özet kartının koyu lacivert olduğunu, bağlantı durumu noktasının yeşil/kırmızı olduğunu, sağ üstteki ay/güneş ikonuyla açık/koyu modu değiştirerek her iki modda da tutarlı göründüğünü doğrula. Sunucuyu durdur (Ctrl+C).
+Değiştirilen `App.js` satırlarını oku ve şunları teyit et: `disKapsayici`/`StatusBar` her iki modda da `koyuTema.zemin`'e sabitlenmiş; `ustCubuk` stilinde `backgroundColor: koyuTema.zemin`, `borderBottomColor: marka.mavi.taban`; `ozetKart` arkaplanı `acilDurum ? marka.kirmizi.taban : tema.ozetKartArkaplan`; `ozetNokta` ve `durumNoktasi` bağlı/kesildi durumunda sırasıyla `marka.yesil.taban`/`marka.kirmizi.taban`; `ilerlemeIcKutu` arkaplanı `marka.mavi.taban`. Hiçbir eski hex (`#0D3B66`, `#1E6091`, `#4FA3D9`, `#0B1520`, `#1B2733`, `#12324D`, `#B71C1C`) kalmadığını grep ile doğrula.
 
 - [ ] **Step 9: Commit**
 
@@ -377,13 +373,13 @@ her üçünde de `nokta.tip === 'ada' ? '#C67A00' : '#1E6091'` ifadesini `tipRen
 
 Run:
 ```bash
-npx expo export --platform web
+npx expo export --platform android
 ```
 Expected: exit 0, hata yok.
 
-- [ ] **Step 5: Görsel doğrulama**
+- [ ] **Step 5: Kod incelemesiyle doğrulama**
 
-`npx expo start --web` ile başlat, "TÜM DURAKLAR" listesinde bir ada durağını (örn. Heybeliada) açıp tip noktasının ve butonların yeşil, varsa bir batık durağının kırmızı göründüğünü doğrula. Sunucuyu durdur.
+`App.js` diff'ini oku: `tipNoktasi` ve üç `kucukButon` çağrısının artık `nokta.tip === 'ada' ? '#C67A00' : '#1E6091'` yerine `tipRengi(nokta.tip).kenar` kullandığını, `bilgiKarti` bloğunun (462-473) zaten `tipRengi(gosterilecekKart.tip)` çağırdığı için değişmeden doğru çalıştığını doğrula. `theme.js`'deki `tipRenkleri('ada', false).kenar` değerinin `marka.yesil.metinAcikMod`, `tipRenkleri('batik', false).kenar` değerinin `marka.kirmizi.metinAcikMod` olduğunu teyit et.
 
 - [ ] **Step 6: Commit**
 
@@ -489,13 +485,13 @@ git commit -m "feat: ada/batik genel UI renklerini yesil/kirmiziye tasi"
 
 Run:
 ```bash
-npx expo export --platform web
+npx expo export --platform android
 ```
 Expected: exit 0, hata yok.
 
-- [ ] **Step 6: Görsel doğrulama**
+- [ ] **Step 6: Kod incelemesiyle doğrulama**
 
-`npx expo start --web` ile başlat: Ayarlar modalını açıp yazı boyutu seçili butonunun mavi olduğunu, "Tanıtımı Tekrar Göster" ve "Kapat" butonlarının doğru renkte olduğunu, tanıtım ekranının (ilk açılış / Ayarlar > Tanıtımı Tekrar Göster) koyu lacivert zeminde mavi aktif nokta ve mavi "İleri" butonuyla göründüğünü doğrula. Sunucuyu durdur.
+`App.js` diff'ini oku: `boyutButon` seçili durumda `marka.mavi.taban` kullandığını; "Tanıtımı Tekrar Göster" butonunun artık sabit `'#5B7A8F'` yerine `renkler.etiket` kullandığını (moda duyarlı); `tanitimEkrani` arkaplanının `koyuTema.zemin`, `tanitimNokta` aktif rengin `marka.mavi.taban` olduğunu; StyleSheet'te `acilKutu`→`marka.kirmizi.taban`, `varisKutu`→`marka.yesil.metinAcikMod`, `kapatButon`→`marka.mavi.taban`, `tanitimIleriButon`→`marka.mavi.taban` olarak güncellendiğini doğrula.
 
 - [ ] **Step 7: Commit**
 
@@ -592,13 +588,13 @@ git commit -m "feat: acil durum/varis banner ve butonlari yeni temaya tasi"
 
 Run:
 ```bash
-npx expo export --platform web
+npx expo export --platform android
 ```
 Expected: exit 0, hata yok.
 
-- [ ] **Step 7: Görsel doğrulama**
+- [ ] **Step 7: Kod incelemesiyle doğrulama**
 
-`npx expo start --web` ile başlat: haritada gemi ikonunun beyaz gövde + mavi çerçeve/kabin + turuncu baca ile göründüğünü, Heybeliada/Büyükada/Kınalıada noktalarının turuncu, "Bozuk Gemi Batığı" noktasının kırmızı olduğunu, bu noktalara tıklayınca açılan popup'ların doğru renkte metin gösterdiğini doğrula. Sunucuyu durdur.
+`haritaHtml` template literal'indeki diff'i oku: gemi SVG'sinde gövde `haritaRenkleri.gemiGovde` (beyaz), çerçeve/kabin `haritaRenkleri.gemiCerceve`/`gemiKabin` (mavi), pencereler `haritaRenkleri.gemiPencere` (beyaz), baca `haritaRenkleri.gemiBaca` (turuncu) olduğunu; `adaIkonu` dolgusunun `haritaRenkleri.ada` (turuncu), `batikIkonu` dolgusunun `haritaRenkleri.batik` (kırmızı) olduğunu; popup CSS'lerinin `marka.turuncu.metinAcikMod`/`marka.kirmizi.metinAcikMod` kullandığını; `rotaCizgisi` renginin `marka.mavi.taban` olduğunu doğrula. `${}` interpolasyonlarının template literal içinde doğru şekilde (tırnaklar bozulmadan) yerleştiğini kontrol et.
 
 - [ ] **Step 8: Commit**
 
@@ -637,19 +633,20 @@ Expected: `OK: eski renk kalmadi`, exit 0. Eğer bulunanlar listesi doluysa, o s
 
 Run:
 ```bash
-npx expo export --platform web
+npx expo export --platform android
 ```
 Expected: exit 0, hata yok.
 
-- [ ] **Step 3: Uçtan uca görsel doğrulama**
+- [ ] **Step 3: Uçtan uca kod incelemesiyle doğrulama**
 
-`npx expo start --web` ile başlat, sırasıyla kontrol et:
-- Açık mod: üst çubuk lacivert, ilerleme çubuğu mavi, kartlar beyaz zemin üzerinde koyu lacivert yazı, ada noktaları yeşil/turuncu ayrımına uygun, harita ikonları doğru.
-- Ay ikonuna dokunup koyu moda geç: zemin `#0d1b2a`, kartlar bir ton açık lacivert, yazılar açık renk, tüm vurgu renkleri okunur durumda.
-- Ayarlar, Yardım, Yolculuk Özeti modallarını aç, her ikisinde de renklerin moda uygun göründüğünü doğrula.
-- Backend çalışıyorsa acil durum simülasyonunu tetikleyip üst çubuğun/kartın kırmızıya döndüğünü doğrula (backend yoksa bu adımı atla ve not düş).
+Bu ortamda tarayıcı/emülatör yok; bu adım tüm `App.js` ve `theme.js`'i baştan sona okuyup şunları teyit etmektir:
+- `temaSec(false)`/`temaSec(true)` tarafından üretilen `renkler` objesinin her iki modda da tutarlı kullanıldığını (görüşülmemiş bir `renkler.xxx` kullanım noktası kalmadığını).
+- Açık mod için: üst çubuk/özet kartı lacivert, ilerleme çubuğu mavi, kartlar beyaz zemin üzerinde koyu lacivert yazı, ada noktaları yeşil, harita ada marker'ı turuncu — hepsinin doğru token'a bağlı olduğunu.
+- Koyu mod için: zemin `koyuTema.zemin` (`#0d1b2a`), kartlar `koyuTema.yuzey`, yazılar `koyuTema.yaziBirincil`/`yaziIkincil` — hepsinin doğru token'a bağlı olduğunu.
+- Ayarlar/Yardım/Yolculuk Özeti modallarının `renkler.kutuArkaplan`/`renkler.yazi` kullandığını (Task kapsamında değişmediğini, zaten `renkler` üzerinden geldiğini).
+- `acilDurum` state'i true olduğunda üst çubuk, `ustCubukAcil` ve `ozetKart` arkaplanlarının `marka.kirmizi.taban`'a döndüğünü (kod okuma ile, çalıştırmadan).
 
-Sunucuyu durdur.
+Uygulamanın gerçek cihazda/emülatörde çalıştırılarak son görsel onayı, tüm task'lar tamamlandıktan sonra kullanıcı tarafından ayrıca yapılacaktır.
 
 - [ ] **Step 4: Commit (yalnızca Step 1'de düzeltme yapıldıysa)**
 
