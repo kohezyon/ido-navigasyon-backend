@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { marka, koyuTema, acikTema, temaSec, tipRenkleri, haritaRenkleri } from './theme';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -248,19 +249,16 @@ export default function App() {
   }, []);
 
   function tipRengi(tip) {
-    if (karanlikMod) {
-      if (tip === 'ada') return { arkaplan: '#4A3300', kenar: '#E0A030', yazi: '#E0A030' };
-      if (tip === 'batik') return { arkaplan: '#0F2E45', kenar: '#4FA3D9', yazi: '#4FA3D9' };
-      return { arkaplan: '#1B2733', kenar: '#4FA3D9', yazi: '#4FA3D9' };
-    }
-    if (tip === 'ada') return { arkaplan: '#FFF4E5', kenar: '#C67A00', yazi: '#C67A00' };
-    if (tip === 'batik') return { arkaplan: '#E5F0F8', kenar: '#1E6091', yazi: '#1E6091' };
-    return { arkaplan: '#F4F8FB', kenar: '#0D3B66', yazi: '#0D3B66' };
+    return tipRenkleri(tip, karanlikMod);
   }
 
-  const renkler = karanlikMod
-    ? { govdeArkaplan: '#0B1520', kutuArkaplan: '#1B2733', yazi: '#E8EEF3', etiket: '#7F97AB' }
-    : { govdeArkaplan: '#F4F8FB', kutuArkaplan: '#FFFFFF', yazi: '#0D3B66', etiket: '#5B7A8F' };
+  const tema = temaSec(karanlikMod);
+  const renkler = {
+    govdeArkaplan: tema.zemin,
+    kutuArkaplan: tema.yuzey,
+    yazi: tema.yaziBirincil,
+    etiket: tema.yaziIkincil,
+  };
 
   const boyutCarpani = yaziBoyutu === 'kucuk' ? 0.85 : yaziBoyutu === 'buyuk' ? 1.3 : 1;
 
@@ -331,10 +329,10 @@ export default function App() {
   `;
 
   return (
-    <View style={[styles.disKapsayici, { backgroundColor: karanlikMod ? '#0B1520' : '#0D3B66' }]}>
-      <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
+    <View style={[styles.disKapsayici, { backgroundColor: koyuTema.zemin }]}>
+      <StatusBar barStyle="light-content" backgroundColor={koyuTema.zemin} />
 
-      <View style={[styles.ustCubuk, acilDurum && styles.ustCubukAcil, karanlikMod && !acilDurum && { backgroundColor: '#0B1520', borderBottomColor: '#1B2733' }]}>
+      <View style={[styles.ustCubuk, acilDurum && styles.ustCubukAcil]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={[styles.ustCubukBaslik, { fontSize: 20 * boyutCarpani }]}>IDO Engelsiz Navigasyon</Text>
@@ -385,7 +383,7 @@ export default function App() {
         )}
 
         <View
-          style={[styles.ozetKart, { backgroundColor: acilDurum ? '#B71C1C' : (karanlikMod ? '#12324D' : '#0D3B66') }]}
+          style={[styles.ozetKart, { backgroundColor: acilDurum ? marka.kirmizi.taban : tema.ozetKartArkaplan }]}
           accessible={true}
           accessibilityLabel={
             'Ozet: Baglanti ' + baglantiDurumu +
@@ -395,7 +393,7 @@ export default function App() {
           }
         >
           <View style={styles.ozetSatir}>
-            <View style={[styles.ozetNokta, { backgroundColor: baglantiDurumu === 'Bagli' ? '#4CAF50' : '#EF5350' }]} />
+            <View style={[styles.ozetNokta, { backgroundColor: baglantiDurumu === 'Bagli' ? marka.yesil.taban : marka.kirmizi.taban }]} />
             <Text style={styles.ozetKartYaziKucuk}>{baglantiDurumu === 'Bagli' ? 'Bagli' : 'Baglanti Yok'}</Text>
           </View>
 
@@ -419,7 +417,7 @@ export default function App() {
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]} accessible={true} accessibilityLabel={'Baglanti durumu: ' + baglantiDurumu}>
           <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>BAGLANTI DURUMU</Text>
           <View style={styles.satirIci}>
-            <View style={[styles.durumNoktasi, { backgroundColor: baglantiDurumu === 'Bagli' ? '#2E7D32' : '#C62828' }]} />
+            <View style={[styles.durumNoktasi, { backgroundColor: baglantiDurumu === 'Bagli' ? marka.yesil.taban : marka.kirmizi.taban }]} />
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{baglantiDurumu}</Text>
           </View>
         </View>
@@ -693,14 +691,14 @@ export default function App() {
 
 const styles = StyleSheet.create({
   disKapsayici: { flex: 1 },
-  ustCubuk: { backgroundColor: '#0D3B66', paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: '#1E6091' },
-  ustCubukAcil: { backgroundColor: '#B71C1C', borderBottomColor: '#7F0000' },
+  ustCubuk: { backgroundColor: koyuTema.zemin, paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: marka.mavi.taban },
+  ustCubukAcil: { backgroundColor: marka.kirmizi.taban, borderBottomColor: marka.kirmizi.metinAcikMod },
   ustCubukBaslik: { color: '#FFFFFF', fontWeight: 'bold' },
   ustCubukAltBaslik: { color: '#CDE3F0', marginTop: 4 },
   temaButon: { padding: 8 },
   temaButonYazi: { fontSize: 20 },
   ilerlemeDisKutu: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, marginTop: 14, overflow: 'hidden' },
-  ilerlemeIcKutu: { height: 8, backgroundColor: '#4FA3D9', borderRadius: 4 },
+  ilerlemeIcKutu: { height: 8, backgroundColor: marka.mavi.taban, borderRadius: 4 },
   ilerlemeYazi: { color: '#CDE3F0', fontSize: 11, marginTop: 6 },
   haritaKapsayici: { height: 260, width: '100%' },
   harita: { height: 260, width: '100%' },
