@@ -30,24 +30,24 @@ function temaSec(karanlikMod) {
 function tipRenkleri(tip, karanlikMod) {
   if (tip === 'ada') {
     return karanlikMod
-      ? { arkaplan: '#1E3A2A', kenar: marka.yesil.taban, yazi: marka.yesil.taban }
-      : { arkaplan: '#EAF5EE', kenar: marka.yesil.metinAcikMod, yazi: marka.yesil.metinAcikMod };
+      ? { arkaplan: '#1E3A2A', kenar: marka.yesil.taban, yazi: marka.yesil.taban, butonArkaplan: marka.yesil.metinAcikMod }
+      : { arkaplan: '#EAF5EE', kenar: marka.yesil.metinAcikMod, yazi: marka.yesil.metinAcikMod, butonArkaplan: marka.yesil.metinAcikMod };
   }
   if (tip === 'batik') {
     return karanlikMod
-      ? { arkaplan: '#3A1E1E', kenar: marka.kirmizi.taban, yazi: marka.kirmizi.taban }
-      : { arkaplan: '#FBEAEA', kenar: marka.kirmizi.metinAcikMod, yazi: marka.kirmizi.metinAcikMod };
+      ? { arkaplan: '#341B1B', kenar: marka.kirmizi.taban, yazi: marka.kirmizi.taban, butonArkaplan: marka.kirmizi.metinAcikMod }
+      : { arkaplan: '#FBEAEA', kenar: marka.kirmizi.metinAcikMod, yazi: marka.kirmizi.metinAcikMod, butonArkaplan: marka.kirmizi.metinAcikMod };
   }
   return karanlikMod
-    ? { arkaplan: koyuTema.yuzey, kenar: marka.mavi.taban, yazi: marka.mavi.taban }
-    : { arkaplan: '#EAF3FA', kenar: marka.mavi.metinAcikMod, yazi: marka.mavi.metinAcikMod };
+    ? { arkaplan: koyuTema.yuzey, kenar: marka.mavi.taban, yazi: marka.mavi.taban, butonArkaplan: marka.mavi.metinAcikMod }
+    : { arkaplan: '#EAF3FA', kenar: marka.mavi.metinAcikMod, yazi: marka.mavi.metinAcikMod, butonArkaplan: marka.mavi.metinAcikMod };
 }
 
 const haritaRenkleri = {
   gemiGovde: '#FFFFFF',
-  gemiCerceve: marka.mavi.taban,
-  gemiKabin: marka.mavi.taban,
-  gemiPencere: '#FFFFFF',
+  gemiCerceve: koyuTema.zemin,
+  gemiKabin: koyuTema.zemin,
+  gemiPencere: marka.mavi.taban,
   gemiBaca: marka.turuncu.taban,
   ada: marka.turuncu.taban,
   batik: marka.kirmizi.taban,
