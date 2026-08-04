@@ -356,7 +356,7 @@ export default function App() {
         <View style={styles.ilerlemeDisKutu}>
           <View style={[styles.ilerlemeIcKutu, { width: ilerlemeYuzdesi + '%' }]} />
         </View>
-        <Text style={styles.ilerlemeYazi}>
+        <Text style={[styles.ilerlemeYazi, { color: acilDurum ? '#FFFFFF' : undefined }]}>
           Yalova %{ilerlemeYuzdesi.toFixed(0)} Istanbul
           {toplamKalanDakika !== null ? ' • Tahmini varis: ' + Math.ceil(toplamKalanDakika) + ' dk' : ''}
         </Text>
@@ -394,7 +394,7 @@ export default function App() {
         >
           <View style={styles.ozetSatir}>
             <View style={[styles.ozetNokta, { backgroundColor: baglantiDurumu === 'Bagli' ? marka.yesil.taban : marka.kirmizi.taban }]} />
-            <Text style={styles.ozetKartYaziKucuk}>{baglantiDurumu === 'Bagli' ? 'Bagli' : 'Baglanti Yok'}</Text>
+            <Text style={[styles.ozetKartYaziKucuk, { color: acilDurum ? '#FFFFFF' : undefined }]}>{baglantiDurumu === 'Bagli' ? 'Bagli' : 'Baglanti Yok'}</Text>
           </View>
 
           <Text style={styles.ozetKartBuyukYazi}>
@@ -598,7 +598,7 @@ export default function App() {
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.kapatButon, { backgroundColor: renkler.etiket, marginTop: 10 }]}
+              style={[styles.kapatButon, { backgroundColor: karanlikMod ? '#55677A' : renkler.etiket, marginTop: 10 }]}
               onPress={() => {
                 setAyarlarAcik(false);
                 setTanitimIndex(0);
@@ -694,7 +694,7 @@ export default function App() {
 const styles = StyleSheet.create({
   disKapsayici: { flex: 1 },
   ustCubuk: { backgroundColor: koyuTema.zemin, paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: marka.mavi.taban },
-  ustCubukAcil: { backgroundColor: marka.kirmizi.metinAcikMod, borderBottomColor: marka.kirmizi.metinAcikMod },
+  ustCubukAcil: { backgroundColor: marka.kirmizi.metinAcikMod, borderBottomColor: marka.kirmizi.taban },
   ustCubukBaslik: { color: '#FFFFFF', fontWeight: 'bold' },
   ustCubukAltBaslik: { color: '#CDE3F0', marginTop: 4 },
   temaButon: { padding: 8 },
