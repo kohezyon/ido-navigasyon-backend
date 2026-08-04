@@ -723,7 +723,7 @@ const styles = StyleSheet.create({
   satirIci: { flexDirection: 'row', alignItems: 'center' },
   durumNoktasi: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   durakSatiri: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: marka.mavi.taban, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  durakNumarasi: { width: 22, height: 22, borderRadius: 11, backgroundColor: marka.mavi.metinAcikMod, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   durakNumarasiYazi: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   durakYazi: {},
   bilgiKarti: { marginTop: 6, padding: 20, borderRadius: 12, borderWidth: 2 },
