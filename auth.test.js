@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { anahtarDogrula } from './auth.js';
+const { anahtarDogrula } = require('./auth.js');
 
 describe('anahtarDogrula', () => {
     it('saglanan ve beklenen ayni oldugunda true doner', () => {

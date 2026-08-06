@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+const crypto = require('crypto');
 
 function anahtarDogrula(saglanan, beklenen) {
     if (typeof saglanan !== 'string' || saglanan.length === 0) return false;
@@ -10,4 +10,4 @@ function anahtarDogrula(saglanan, beklenen) {
     return crypto.timingSafeEqual(saglananOzet, beklenenOzet);
 }
 
-export { anahtarDogrula };
+module.exports = { anahtarDogrula };
