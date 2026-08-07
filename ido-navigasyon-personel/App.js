@@ -82,11 +82,13 @@ export default function App() {
       setBaglantiDurumu('Baglanti kesildi');
     });
 
-    soket.on('connect_error', async () => {
+    soket.on('connect_error', async (hata) => {
       setBaglantiDurumu('Baglanti kesildi');
-      const yeniToken = await erisimTokeniniYenile();
-      if (!yeniToken) {
-        await oturumuKapat();
+      if (hata && hata.message === 'Yetkisiz') {
+        const yeniToken = await erisimTokeniniYenile();
+        if (!yeniToken) {
+          await oturumuKapat();
+        }
       }
     });
 
