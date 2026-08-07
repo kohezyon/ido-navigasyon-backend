@@ -15,7 +15,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | Faz | Konu | Öncelik | Tahmini efor | Durum |
 |---|---|---|---|---|
 | 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) | ✅ Tamamlandı |
-| 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | - |
+| 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | - |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | - |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
@@ -36,7 +36,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 - Socket event payload'larına temel doğrulama (`bilgi.gemi_adi` gibi alanlar tip/uzunluk kontrolünden geçmeden yayınlanmasın).
 - Hata mesajlarında (`hata.message`) internal detayları client'a sızdırmayı durdur — genel mesaj dön, detayı sunucu log'una yaz.
 
-## Faz 1 — Gerçek Kimlik Doğrulama & Yetkilendirme
+## Faz 1 — Gerçek Kimlik Doğrulama & Yetkilendirme ✅ Tamamlandı (2026-08-07)
 
 **Kapsam:**
 - Personel hesap modeli (DB tablosu): kullanıcı adı, hash'lenmiş şifre (bcrypt/argon2), rol (kaptan/personel/admin).
@@ -100,4 +100,10 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 ## Sonraki adım
 
-**Faz 0 tamamlandı** (bkz. `2026-08-07-faz0-guvenlik-yamasi.md`, `main`'e merge edildi, 26/26 test yeşil). Sıradaki: **Faz 1** (gerçek kimlik doğrulama & yetkilendirme) — geçici paylaşılan-anahtar modelini kalıcı olarak ortadan kaldıracak adım. `superpowers:writing-plans` ile adım adım (test-driven, dosya bazlı) bir uygulama planı çıkarılacak.
+**Faz 0 tamamlandı** (bkz. `2026-08-07-faz0-guvenlik-yamasi.md`, `main`'e merge edildi, 26/26 test yeşil).
+
+**Faz 1 tamamlandı** (bkz. `2026-08-07-faz1-kimlik-dogrulama.md`, `main`'e merge edildi — commit `1783cb1`, 67/67 test yeşil). `PERSONEL_ANAHTARI` paylaşılan-anahtar modeli tamamen kaldırıldı; bcrypt şifre hash'leme, `personel_hesaplari` tablosu, JWT access/refresh token çifti (tür ayrımı ile), REST + Socket.io JWT auth, rol bazlı yetkilendirme ve personel app'te gerçek login ekranı devreye alındı. Final whole-branch review'da bulunan 1 Critical + 4 Important güvenlik bulgusu (token türü karışıklığı, eksik `JWT_GIZLI_ANAHTARI` fail-fast, refresh'te DB'nin tekrar okunmaması, socket oturumlarının süre kontrolü yapmaması, sahte-şifre-hash senkronizasyonu) düzeltildi ve doğrulandı.
+
+**Bekleyen manuel adım:** Personel app'in gerçek Expo/cihaz ortamında login akışı ve rol bazlı yetkilendirme UX'i (planın Task 10, Step 2-3) bu ortamda otomatik doğrulanamadı — bir insan operatör tarafından Expo ile manuel test edilmeli.
+
+Sıradaki: **Faz 2** (çoklu gemi/hat veri modeli). `superpowers:writing-plans` ile adım adım (test-driven, dosya bazlı) bir uygulama planı çıkarılacak.
