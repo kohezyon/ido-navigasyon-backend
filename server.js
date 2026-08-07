@@ -5,8 +5,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
+const { anahtarDogrula } = require('./auth.js');
 
 const app = express();
+app.use(express.json());
 const sunucu = http.createServer(app);
 
 const io = new Server(sunucu, {
@@ -168,6 +170,9 @@ io.on('connection', (soket) => {
     });
 });
 app.post('/reset-gemi', (req, res) => {
+    if (!anahtarDogrula(req.body?.anahtar, PERSONEL_ANAHTARI)) {
+        return res.status(401).json({ hata: 'Yetkisiz istek' });
+    }
     gemiKonumu.enlem = baslangicKonumu.enlem;
     gemiKonumu.boylam = baslangicKonumu.boylam;
     suankiHedefIndex = 0;
@@ -206,15 +211,18 @@ app.get('/hava-durumu', async (req, res) => {
     }
 });
 
-app.use(express.json());
 app.post('/geri-bildirim', (req, res) => {
     console.log('GERI BILDIRIM ALINDI:', req.body);
     res.json({ tamam: true });
 });
 
-setInterval(konumKontrolVeYayinla, 1000);
-
 const PORT = process.env.PORT || 3000;
-sunucu.listen(PORT, () => {
-    console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
-});
+
+if (require.main === module) {
+    setInterval(konumKontrolVeYayinla, 1000);
+    sunucu.listen(PORT, () => {
+        console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
+    });
+}
+
+module.exports = { app, sunucu, havuz };
