@@ -15,4 +15,33 @@ function corsOrijinKontrolu(izinVerilenOrijinler) {
     };
 }
 
-module.exports = { izinliOrijinListesi, corsOrijinKontrolu };
+function corsMiddleware(izinVerilenOrijinler) {
+    const orijinKontrolEt = corsOrijinKontrolu(izinVerilenOrijinler);
+
+    return function (req, res, next) {
+        const orijin = req.headers.origin;
+
+        orijinKontrolEt(orijin, (hata, izinVerildi) => {
+            if (!izinVerildi) {
+                res.status(403).json({ hata: 'CORS: izin verilmeyen orijin' });
+                return;
+            }
+
+            if (orijin) {
+                res.setHeader('Access-Control-Allow-Origin', orijin);
+                res.setHeader('Vary', 'Origin');
+            }
+
+            if (req.method === 'OPTIONS') {
+                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                res.status(204).end();
+                return;
+            }
+
+            next();
+        });
+    };
+}
+
+module.exports = { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware };

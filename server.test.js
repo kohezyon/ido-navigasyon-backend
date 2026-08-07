@@ -1,5 +1,6 @@
 process.env.PERSONEL_ANAHTARI = 'test-ortami-anahtari';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/test';
+process.env.ALLOWED_ORIGINS = 'https://izinli-site.com';
 
 import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest';
 const request = require('supertest');
@@ -38,6 +39,33 @@ describe('sunucuHatasiYanitla', () => {
         expect(sahteRes.json).toHaveBeenCalledWith({ hata: 'Ilgi noktalari alinamadi' });
         expect(consoleSpy).toHaveBeenCalledWith('Ilgi noktalari alinamadi:', hata.message);
         consoleSpy.mockRestore();
+    });
+});
+
+describe('REST uclarinda CORS', () => {
+    it('izin verilmeyen origin ile POST /reset-gemi 403 doner', async () => {
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Origin', 'https://kotu-site.com')
+            .send({ anahtar: 'test-ortami-anahtari' });
+        expect(yanit.status).toBe(403);
+    });
+
+    it('izin verilen origin ile POST /reset-gemi gecer ve Access-Control-Allow-Origin doner', async () => {
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Origin', 'https://izinli-site.com')
+            .send({ anahtar: 'test-ortami-anahtari' });
+        expect(yanit.status).toBe(200);
+        expect(yanit.headers['access-control-allow-origin']).toBe('https://izinli-site.com');
+    });
+
+    it('origin header i olmadan (mobil istemci) istek normal calisir', async () => {
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .send({ anahtar: 'test-ortami-anahtari' });
+        expect(yanit.status).toBe(200);
+        expect(yanit.headers['access-control-allow-origin']).toBeUndefined();
     });
 });
 

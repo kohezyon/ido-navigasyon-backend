@@ -126,6 +126,25 @@ export default function App() {
     setPersonelAnahtari(temizlenmis);
   }
 
+  function anahtariDegistir() {
+    Alert.alert(
+      'Anahtari Degistir',
+      'Kayitli personel anahtarini silip yeniden girmek istediginizden emin misiniz?',
+      [
+        { text: 'Vazgec', style: 'cancel' },
+        {
+          text: 'Evet, Sil',
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync(ANAHTAR_DEPO_ADI);
+            setAnahtarGirisi('');
+            setPersonelAnahtari(null);
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <View style={styles.disKapsayici}>
       <StatusBar barStyle="light-content" backgroundColor="#0D3B66" />
@@ -212,6 +231,10 @@ export default function App() {
             >
               <Text style={styles.buyukButonYazi}>ACIL DURUMU BITIR</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.anahtarDegistirButon} onPress={anahtariDegistir}>
+              <Text style={styles.anahtarDegistirYazi}>Anahtari Degistir</Text>
+            </TouchableOpacity>
           </View>
         </>
       )}
@@ -267,4 +290,6 @@ const styles = StyleSheet.create({
   bitirButon: { backgroundColor: '#2E7D32' },
   pasifButon: { backgroundColor: '#B0BEC5' },
   buyukButonYazi: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  anahtarDegistirButon: { marginTop: 20, alignItems: 'center', padding: 8 },
+  anahtarDegistirYazi: { color: '#5B7A8F', fontSize: 13, textDecorationLine: 'underline' },
 });
