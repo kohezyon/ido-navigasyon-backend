@@ -22,14 +22,14 @@ describe('bearerTokenAl', () => {
 
 describe('jwtDogrulaMiddleware', () => {
     it('gecerli token ve izinli rol ile next cagirir, req.kullanici i doldurur', () => {
-        const tokenDogrula = vi.fn().mockReturnValue({ id: 1, rol: 'kaptan' });
+        const tokenDogrula = vi.fn().mockReturnValue({ id: 1, rol: 'kaptan', tur: 'erisim' });
         const middleware = jwtDogrulaMiddleware(tokenDogrula, 'gizli', ['kaptan', 'admin']);
         const { req, res, next } = sahteReqResOlustur('Bearer gecerli-token');
 
         middleware(req, res, next);
 
         expect(next).toHaveBeenCalled();
-        expect(req.kullanici).toEqual({ id: 1, rol: 'kaptan' });
+        expect(req.kullanici).toEqual({ id: 1, rol: 'kaptan', tur: 'erisim' });
     });
 
     it('token yoksa veya gecersizse 401 doner', () => {
@@ -44,13 +44,24 @@ describe('jwtDogrulaMiddleware', () => {
     });
 
     it('rol izinli roller listesinde degilse 403 doner', () => {
-        const tokenDogrula = vi.fn().mockReturnValue({ id: 1, rol: 'personel' });
+        const tokenDogrula = vi.fn().mockReturnValue({ id: 1, rol: 'personel', tur: 'erisim' });
         const middleware = jwtDogrulaMiddleware(tokenDogrula, 'gizli', ['kaptan', 'admin']);
         const { req, res, next } = sahteReqResOlustur('Bearer gecerli-token');
 
         middleware(req, res, next);
 
         expect(res.status).toHaveBeenCalledWith(403);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('tur claim i "erisim" degilse (yenileme tokeni) 401 doner', () => {
+        const tokenDogrula = vi.fn().mockReturnValue({ id: 1, rol: 'kaptan', tur: 'yenileme' });
+        const middleware = jwtDogrulaMiddleware(tokenDogrula, 'gizli', ['kaptan', 'admin']);
+        const { req, res, next } = sahteReqResOlustur('Bearer yenileme-tokeni');
+
+        middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(401);
         expect(next).not.toHaveBeenCalled();
     });
 });

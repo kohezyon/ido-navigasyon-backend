@@ -7,9 +7,9 @@ const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware } = require('./cors.js');
 const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
-const { sifreDogrula } = require('./sifreYardimcisi.js');
+const { sifreDogrula, SAHTE_SIFRE_HASH } = require('./sifreYardimcisi.js');
 const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
-const { kullaniciAdiylaBul } = require('./personelRepo.js');
+const { kullaniciAdiylaBul, idIleBul } = require('./personelRepo.js');
 const { jwtDogrulaMiddleware } = require('./restAuth.js');
 
 const app = express();
@@ -28,7 +28,9 @@ const havuz = new Pool({
 });
 const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
 const JWT_GIZLI_ANAHTARI = process.env.JWT_GIZLI_ANAHTARI;
-const SAHTE_SIFRE_HASH = require('bcryptjs').hashSync('sahte-sifre-zamanlama-korumasi', 10);
+if (!JWT_GIZLI_ANAHTARI) {
+    throw new Error('JWT_GIZLI_ANAHTARI tanimli olmali');
+}
 
 let gemiKonumu = {
     enlem: 40.6500,
@@ -144,17 +146,27 @@ async function konumKontrolVeYayinla() {
 io.use((soket, next) => {
     const token = soket.handshake.auth?.token;
     const payload = typeof token === 'string' ? tokenDogrula(token, JWT_GIZLI_ANAHTARI) : null;
-    if (!payload) {
+    if (!payload || payload.tur !== 'erisim') {
         return next(new Error('Yetkisiz'));
     }
     soket.data.kullanici = payload;
+    soket.data.tokenSuresi = payload.exp;
     next();
 });
+
+function oturumSuresiDolduMu(soket) {
+    return Math.floor(Date.now() / 1000) >= soket.data.tokenSuresi;
+}
 
 io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
     soket.on('acil-durum-baslat', (bilgi, geriBildir) => {
+        if (oturumSuresiDolduMu(soket)) {
+            console.log('SURESI DOLMUS TOKEN ile acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Oturum suresi doldu' });
+            return;
+        }
         if (!['kaptan', 'admin'].includes(soket.data.kullanici.rol)) {
             console.log('YETKISIZ ROL ile acil-durum-baslat denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
@@ -175,6 +187,11 @@ io.on('connection', (soket) => {
     });
 
     soket.on('acil-durum-bitir', (bilgi, geriBildir) => {
+        if (oturumSuresiDolduMu(soket)) {
+            console.log('SURESI DOLMUS TOKEN ile acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Oturum suresi doldu' });
+            return;
+        }
         if (!['kaptan', 'admin'].includes(soket.data.kullanici.rol)) {
             console.log('YETKISIZ ROL ile acil-durum-bitir denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
@@ -272,14 +289,23 @@ app.post('/login', async (req, res) => {
     }
 });
 
-app.post('/token/yenile', (req, res) => {
+app.post('/token/yenile', async (req, res) => {
     const { yenilemeTokeni } = req.body || {};
     const payload = typeof yenilemeTokeni === 'string' ? tokenDogrula(yenilemeTokeni, JWT_GIZLI_ANAHTARI) : null;
-    if (!payload) {
+    if (!payload || payload.tur !== 'yenileme') {
         return res.status(401).json({ hata: 'Gecersiz veya suresi dolmus token' });
     }
-    const yeniPayload = { id: payload.id, kullanici_adi: payload.kullanici_adi, rol: payload.rol };
-    res.json({ erisimTokeni: erisimTokeniOlustur(yeniPayload, JWT_GIZLI_ANAHTARI) });
+
+    try {
+        const kullanici = await idIleBul(havuz, payload.id);
+        if (!kullanici) {
+            return res.status(401).json({ hata: 'Gecersiz veya suresi dolmus token' });
+        }
+        const yeniPayload = { id: kullanici.id, kullanici_adi: kullanici.kullanici_adi, rol: kullanici.rol };
+        res.json({ erisimTokeni: erisimTokeniOlustur(yeniPayload, JWT_GIZLI_ANAHTARI) });
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Token yenilenemedi');
+    }
 });
 
 app.post('/geri-bildirim', (req, res) => {

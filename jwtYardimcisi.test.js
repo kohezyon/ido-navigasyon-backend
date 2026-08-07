@@ -20,6 +20,12 @@ describe('erisimTokeniOlustur ve tokenDogrula', () => {
     it('bozuk token null doner', () => {
         expect(tokenDogrula('bozuk.token.degeri', TEST_ANAHTARI)).toBeNull();
     });
+
+    it('tur claim i "erisim" olarak isaretlenir', () => {
+        const token = erisimTokeniOlustur({ id: 1 }, TEST_ANAHTARI);
+        const payload = tokenDogrula(token, TEST_ANAHTARI);
+        expect(payload.tur).toBe('erisim');
+    });
 });
 
 describe('yenilemeTokeniOlustur', () => {
@@ -27,5 +33,17 @@ describe('yenilemeTokeniOlustur', () => {
         const token = yenilemeTokeniOlustur({ id: 1 }, TEST_ANAHTARI);
         const payload = tokenDogrula(token, TEST_ANAHTARI);
         expect(payload.id).toBe(1);
+    });
+
+    it('tur claim i "yenileme" olarak isaretlenir', () => {
+        const token = yenilemeTokeniOlustur({ id: 1 }, TEST_ANAHTARI);
+        const payload = tokenDogrula(token, TEST_ANAHTARI);
+        expect(payload.tur).toBe('yenileme');
+    });
+
+    it('erisim ve yenileme tokenlari ayni payload ile bile farkli tur claim ine sahiptir', () => {
+        const erisim = erisimTokeniOlustur({ id: 1 }, TEST_ANAHTARI);
+        const yenileme = yenilemeTokeniOlustur({ id: 1 }, TEST_ANAHTARI);
+        expect(tokenDogrula(erisim, TEST_ANAHTARI).tur).not.toBe(tokenDogrula(yenileme, TEST_ANAHTARI).tur);
     });
 });

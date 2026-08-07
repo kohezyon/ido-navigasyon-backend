@@ -9,7 +9,7 @@ function jwtDogrulaMiddleware(tokenDogrula, gizliAnahtar, izinliRoller) {
         const token = bearerTokenAl(req);
         const payload = token ? tokenDogrula(token, gizliAnahtar) : null;
 
-        if (!payload) {
+        if (!payload || payload.tur !== 'erisim') {
             return res.status(401).json({ hata: 'Yetkisiz istek' });
         }
         if (izinliRoller && !izinliRoller.includes(payload.rol)) {

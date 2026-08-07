@@ -4,11 +4,11 @@ const ERISIM_TOKEN_OMRU = '15m';
 const YENILEME_TOKEN_OMRU = '7d';
 
 function erisimTokeniOlustur(payload, gizliAnahtar) {
-    return jwt.sign(payload, gizliAnahtar, { expiresIn: ERISIM_TOKEN_OMRU });
+    return jwt.sign({ ...payload, tur: 'erisim' }, gizliAnahtar, { expiresIn: ERISIM_TOKEN_OMRU });
 }
 
 function yenilemeTokeniOlustur(payload, gizliAnahtar) {
-    return jwt.sign(payload, gizliAnahtar, { expiresIn: YENILEME_TOKEN_OMRU });
+    return jwt.sign({ ...payload, tur: 'yenileme' }, gizliAnahtar, { expiresIn: YENILEME_TOKEN_OMRU });
 }
 
 function tokenDogrula(token, gizliAnahtar) {

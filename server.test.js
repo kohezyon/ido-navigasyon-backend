@@ -10,6 +10,24 @@ const { app, havuz, sunucu } = require('./server.js');
 const { sifreHashle } = require('./sifreYardimcisi.js');
 const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
 const { erisimTokeniOlustur } = require('./jwtYardimcisi.js');
+const { tokenDogrula } = require('./jwtYardimcisi.js');
+
+describe('JWT_GIZLI_ANAHTARI dogrulamasi', () => {
+    it('JWT_GIZLI_ANAHTARI tanimli degilse sunucu modulu yuklenirken hata firlatir', () => {
+        const { spawnSync } = require('child_process');
+        const sonuc = spawnSync(
+            process.execPath,
+            ['-e', "require('./server.js')"],
+            {
+                cwd: __dirname,
+                env: { ...process.env, JWT_GIZLI_ANAHTARI: '' },
+                encoding: 'utf-8'
+            }
+        );
+        expect(sonuc.status).not.toBe(0);
+        expect(sonuc.stderr).toMatch(/JWT_GIZLI_ANAHTARI tanimli olmali/);
+    });
+});
 
 describe('POST /login', () => {
     afterEach(() => {
@@ -64,6 +82,10 @@ describe('POST /login', () => {
 });
 
 describe('POST /token/yenile', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it('gecersiz token ile 401 doner', async () => {
         const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: 'bozuk.token.degeri' });
         expect(yanit.status).toBe(401);
@@ -74,14 +96,40 @@ describe('POST /token/yenile', () => {
         expect(yanit.status).toBe(401);
     });
 
-    it('gecerli yenileme tokeni ile yeni erisim tokeni doner', async () => {
+    it('erisim tokeni ile denenirse (tur uyusmazligi) 401 doner', async () => {
+        const erisim = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: erisim });
+        expect(yanit.status).toBe(401);
+    });
+
+    it('gecerli yenileme tokeni ile yeni erisim tokeni doner ve DB den guncel rolu kullanir', async () => {
         const yenileme = yenilemeTokeniOlustur(
             { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
             process.env.JWT_GIZLI_ANAHTARI
         );
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({
+            rows: [{ id: 1, kullanici_adi: 'kaptan1', sifre_hash: 'hash', rol: 'admin' }]
+        });
         const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: yenileme });
         expect(yanit.status).toBe(200);
         expect(typeof yanit.body.erisimTokeni).toBe('string');
+
+        const yeniPayload = tokenDogrula(yanit.body.erisimTokeni, process.env.JWT_GIZLI_ANAHTARI);
+        expect(yeniPayload.rol).toBe('admin');
+        expect(yeniPayload.tur).toBe('erisim');
+    });
+
+    it('kullanici artik DB de bulunamiyorsa (silinmis/pasif hesap) 401 doner', async () => {
+        const yenileme = yenilemeTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [] });
+        const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: yenileme });
+        expect(yanit.status).toBe(401);
     });
 });
 
@@ -122,6 +170,18 @@ describe('POST /reset-gemi', () => {
             .send({});
         expect(yanit.status).toBe(200);
         expect(yanit.body).toEqual({ tamam: true });
+    });
+
+    it('yenileme tokeni Bearer olarak gonderilirse (tur uyusmazligi) 401 doner', async () => {
+        const yenileme = yenilemeTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Authorization', `Bearer ${yenileme}`)
+            .send({});
+        expect(yanit.status).toBe(401);
     });
 });
 
@@ -205,6 +265,42 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         expect(hata.message).toBe('Yetkisiz');
         gonderen.disconnect();
     });
+
+    it('yenileme tokeni ile baglanti reddedilir (tur uyusmazligi)', async () => {
+        const yenileme = yenilemeTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token: yenileme } });
+        const hata = await new Promise((resolve) => gonderen.on('connect_error', resolve));
+        expect(hata.message).toBe('Yetkisiz');
+        gonderen.disconnect();
+    });
+
+    it('baglanti sirasinda gecerli ama sonradan suresi dolan token ile acil-durum-baslat "Oturum suresi doldu" doner', async () => {
+        // Handshake anda gecerli (henuz suresi dolmamis), ama cok kisa omurlu bir token
+        // uretiyoruz; baglanti kurulduktan sonra bekleyip suresinin dolmasini sagliyoruz.
+        // Boylece soket baglantisi acikken token suresinin dolmasi senaryosunu test ediyoruz
+        // (io.use sadece connect aninda calisir, sonraki eventlerde tekrar dogrulama yapmaz).
+        const jwt = require('jsonwebtoken');
+        const kisaOmurluToken = jwt.sign(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan', tur: 'erisim' },
+            process.env.JWT_GIZLI_ANAHTARI,
+            { expiresIn: '1s' }
+        );
+
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token: kisaOmurluToken } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Oturum suresi doldu' });
+        gonderen.disconnect();
+    }, 10000);
 
     it('personel rolundeki token ile baglanir ama acil-durum-baslat Yetkisiz rol doner', async () => {
         const token = erisimTokeniOlustur(
