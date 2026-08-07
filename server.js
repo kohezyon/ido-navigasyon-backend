@@ -139,50 +139,59 @@ async function konumKontrolVeYayinla() {
 io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
-    soket.on('acil-durum-baslat', (bilgi) => {
+    soket.on('acil-durum-baslat', (bilgi, geriBildir) => {
         if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
         if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
             console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
             return;
         }
-        console.log('ACIL DURUM BASLATILDI:', bilgi);
+        console.log('ACIL DURUM BASLATILDI:', { gemi: bilgi.gemi_adi });
         io.emit('acil-durum-uyarisi', {
             mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
             gemi: bilgi.gemi_adi,
             zaman: new Date().toISOString()
         });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
-    soket.on('acil-durum-bitir', (bilgi) => {
+    soket.on('acil-durum-bitir', (bilgi, geriBildir) => {
         if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
         if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
             console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
             return;
         }
-        console.log('ACIL DURUM BITIRILDI:', bilgi);
+        console.log('ACIL DURUM BITIRILDI:', { gemi: bilgi.gemi_adi });
         io.emit('acil-durum-bitti', {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
             zaman: new Date().toISOString()
         });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
-    soket.on('yolcu-sayisi-guncelle', (bilgi) => {
+    soket.on('yolcu-sayisi-guncelle', (bilgi, geriBildir) => {
         if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
         if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
             console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
             return;
         }
-        console.log('YOLCU SAYISI GUNCELLENDI:', bilgi);
-        io.emit('yolcu-sayisi-yayin', bilgi);
+        console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
+        io.emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
     soket.on('disconnect', () => {
@@ -234,6 +243,11 @@ app.get('/hava-durumu', async (req, res) => {
 app.post('/geri-bildirim', (req, res) => {
     console.log('GERI BILDIRIM ALINDI:', req.body);
     res.json({ tamam: true });
+});
+
+app.use((hata, req, res, next) => {
+    console.error('Istek hatasi:', hata.message);
+    res.status(hata.status || 500).json({ hata: 'Istek islenemedi' });
 });
 
 const PORT = process.env.PORT || 3000;
