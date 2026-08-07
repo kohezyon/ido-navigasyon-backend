@@ -55,8 +55,17 @@ export default function App() {
           text: 'Evet, Baslat',
           style: 'destructive',
           onPress: () => {
-            soketRef.current.emit('acil-durum-baslat', { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari });
-            setAcilDurumAktif(true);
+            soketRef.current.emit(
+              'acil-durum-baslat',
+              { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+              (yanit) => {
+                if (yanit && yanit.tamam) {
+                  setAcilDurumAktif(true);
+                } else {
+                  Alert.alert('Hata', 'Acil durum baslatilamadi. Anahtar hatali olabilir.');
+                }
+              }
+            );
           },
         },
       ]
@@ -72,8 +81,17 @@ export default function App() {
         {
           text: 'Evet, Bitir',
           onPress: () => {
-            soketRef.current.emit('acil-durum-bitir', { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari });
-            setAcilDurumAktif(false);
+            soketRef.current.emit(
+              'acil-durum-bitir',
+              { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+              (yanit) => {
+                if (yanit && yanit.tamam) {
+                  setAcilDurumAktif(false);
+                } else {
+                  Alert.alert('Hata', 'Acil durum bitirilemedi. Anahtar hatali olabilir.');
+                }
+              }
+            );
           },
         },
       ]
@@ -81,10 +99,20 @@ export default function App() {
   }
 
   function yolcuSayisiDegistir(fark) {
+    const oncekiSayi = yolcuSayisi;
     const yeniSayi = Math.max(0, yolcuSayisi + fark);
     setYolcuSayisi(yeniSayi);
     if (soketRef.current) {
-      soketRef.current.emit('yolcu-sayisi-guncelle', { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari });
+      soketRef.current.emit(
+        'yolcu-sayisi-guncelle',
+        { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+        (yanit) => {
+          if (!yanit || !yanit.tamam) {
+            setYolcuSayisi(oncekiSayi);
+            Alert.alert('Hata', 'Yolcu sayisi guncellenemedi. Anahtar hatali olabilir.');
+          }
+        }
+      );
     }
   }
 
