@@ -4,32 +4,74 @@ import { io } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 
 const SUNUCU_ADRESI = process.env.EXPO_PUBLIC_SUNUCU_ADRESI || 'https://ido-navigasyon-backend.onrender.com';
-const ANAHTAR_DEPO_ADI = 'personel_anahtari';
+const ERISIM_TOKEN_DEPO_ADI = 'personel_erisim_tokeni';
+const YENILEME_TOKEN_DEPO_ADI = 'personel_yenileme_tokeni';
 
 export default function App() {
-  const [personelAnahtari, setPersonelAnahtari] = useState(null);
-  const [anahtarYukleniyor, setAnahtarYukleniyor] = useState(true);
-  const [anahtarGirisi, setAnahtarGirisi] = useState('');
+  const [tokenYukleniyor, setTokenYukleniyor] = useState(true);
+  const [erisimTokeni, setErisimTokeni] = useState(null);
+  const [yenilemeTokeni, setYenilemeTokeni] = useState(null);
+  const [kullaniciAdiGirisi, setKullaniciAdiGirisi] = useState('');
+  const [sifreGirisi, setSifreGirisi] = useState('');
+  const [girisYapiliyor, setGirisYapiliyor] = useState(false);
+  const [girisHatasi, setGirisHatasi] = useState(null);
   const [baglantiDurumu, setBaglantiDurumu] = useState('Baglaniyor...');
   const [acilDurumAktif, setAcilDurumAktif] = useState(false);
   const [yolcuSayisi, setYolcuSayisi] = useState(0);
   const soketRef = useRef(null);
+  const yenilemeTokeniRef = useRef(null);
 
   useEffect(() => {
-    SecureStore.getItemAsync(ANAHTAR_DEPO_ADI)
-      .then((deger) => {
-        setPersonelAnahtari(deger);
+    yenilemeTokeniRef.current = yenilemeTokeni;
+  }, [yenilemeTokeni]);
+
+  useEffect(() => {
+    Promise.all([
+      SecureStore.getItemAsync(ERISIM_TOKEN_DEPO_ADI),
+      SecureStore.getItemAsync(YENILEME_TOKEN_DEPO_ADI),
+    ])
+      .then(([kayitliErisim, kayitliYenileme]) => {
+        setErisimTokeni(kayitliErisim);
+        setYenilemeTokeni(kayitliYenileme);
       })
       .catch(() => {
-        setPersonelAnahtari(null);
+        setErisimTokeni(null);
+        setYenilemeTokeni(null);
       })
       .finally(() => {
-        setAnahtarYukleniyor(false);
+        setTokenYukleniyor(false);
       });
   }, []);
 
+  async function oturumuKapat() {
+    await SecureStore.deleteItemAsync(ERISIM_TOKEN_DEPO_ADI);
+    await SecureStore.deleteItemAsync(YENILEME_TOKEN_DEPO_ADI);
+    setErisimTokeni(null);
+    setYenilemeTokeni(null);
+  }
+
+  async function erisimTokeniniYenile() {
+    if (!yenilemeTokeniRef.current) return null;
+    try {
+      const yanit = await fetch(SUNUCU_ADRESI + '/token/yenile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yenilemeTokeni: yenilemeTokeniRef.current }),
+      });
+      if (!yanit.ok) return null;
+      const veri = await yanit.json();
+      await SecureStore.setItemAsync(ERISIM_TOKEN_DEPO_ADI, veri.erisimTokeni);
+      setErisimTokeni(veri.erisimTokeni);
+      return veri.erisimTokeni;
+    } catch {
+      return null;
+    }
+  }
+
   useEffect(() => {
-    const soket = io(SUNUCU_ADRESI);
+    if (!erisimTokeni) return;
+
+    const soket = io(SUNUCU_ADRESI, { auth: { token: erisimTokeni } });
     soketRef.current = soket;
 
     soket.on('connect', () => {
@@ -40,10 +82,51 @@ export default function App() {
       setBaglantiDurumu('Baglanti kesildi');
     });
 
+    soket.on('connect_error', async () => {
+      setBaglantiDurumu('Baglanti kesildi');
+      const yeniToken = await erisimTokeniniYenile();
+      if (!yeniToken) {
+        await oturumuKapat();
+      }
+    });
+
     return () => {
       soket.disconnect();
     };
-  }, []);
+  }, [erisimTokeni]);
+
+  async function girisYap() {
+    const kullaniciAdi = kullaniciAdiGirisi.trim();
+    const sifre = sifreGirisi;
+    if (!kullaniciAdi || !sifre) {
+      setGirisHatasi('Kullanici adi ve sifre zorunlu.');
+      return;
+    }
+
+    setGirisYapiliyor(true);
+    setGirisHatasi(null);
+    try {
+      const yanit = await fetch(SUNUCU_ADRESI + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kullanici_adi: kullaniciAdi, sifre }),
+      });
+      const veri = await yanit.json();
+      if (!yanit.ok) {
+        setGirisHatasi(veri.hata || 'Giris basarisiz.');
+        return;
+      }
+      await SecureStore.setItemAsync(ERISIM_TOKEN_DEPO_ADI, veri.erisimTokeni);
+      await SecureStore.setItemAsync(YENILEME_TOKEN_DEPO_ADI, veri.yenilemeTokeni);
+      setErisimTokeni(veri.erisimTokeni);
+      setYenilemeTokeni(veri.yenilemeTokeni);
+      setSifreGirisi('');
+    } catch {
+      setGirisHatasi('Sunucuya ulasilamadi.');
+    } finally {
+      setGirisYapiliyor(false);
+    }
+  }
 
   function acilDurumBaslat() {
     Alert.alert(
@@ -55,14 +138,15 @@ export default function App() {
           text: 'Evet, Baslat',
           style: 'destructive',
           onPress: () => {
+            if (!soketRef.current) return;
             soketRef.current.emit(
               'acil-durum-baslat',
-              { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+              { gemi_adi: 'Yalova Feribotu 1' },
               (yanit) => {
                 if (yanit && yanit.tamam) {
                   setAcilDurumAktif(true);
                 } else {
-                  Alert.alert('Hata', 'Acil durum baslatilamadi. Anahtar hatali olabilir.');
+                  Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum baslatilamadi.');
                 }
               }
             );
@@ -81,14 +165,15 @@ export default function App() {
         {
           text: 'Evet, Bitir',
           onPress: () => {
+            if (!soketRef.current) return;
             soketRef.current.emit(
               'acil-durum-bitir',
-              { gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+              { gemi_adi: 'Yalova Feribotu 1' },
               (yanit) => {
                 if (yanit && yanit.tamam) {
                   setAcilDurumAktif(false);
                 } else {
-                  Alert.alert('Hata', 'Acil durum bitirilemedi. Anahtar hatali olabilir.');
+                  Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum bitirilemedi.');
                 }
               }
             );
@@ -105,69 +190,55 @@ export default function App() {
     if (soketRef.current) {
       soketRef.current.emit(
         'yolcu-sayisi-guncelle',
-        { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1', anahtar: personelAnahtari },
+        { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1' },
         (yanit) => {
           if (!yanit || !yanit.tamam) {
             setYolcuSayisi(oncekiSayi);
-            Alert.alert('Hata', 'Yolcu sayisi guncellenemedi. Anahtar hatali olabilir.');
+            Alert.alert('Hata', (yanit && yanit.hata) || 'Yolcu sayisi guncellenemedi.');
           }
         }
       );
     }
   }
 
-  async function anahtariKaydet() {
-    const temizlenmis = anahtarGirisi.trim();
-    if (!temizlenmis) {
-      Alert.alert('Hata', 'Lutfen gecerli bir anahtar girin.');
-      return;
-    }
-    await SecureStore.setItemAsync(ANAHTAR_DEPO_ADI, temizlenmis);
-    setPersonelAnahtari(temizlenmis);
-  }
-
-  function anahtariDegistir() {
-    Alert.alert(
-      'Anahtari Degistir',
-      'Kayitli personel anahtarini silip yeniden girmek istediginizden emin misiniz?',
-      [
-        { text: 'Vazgec', style: 'cancel' },
-        {
-          text: 'Evet, Sil',
-          style: 'destructive',
-          onPress: async () => {
-            await SecureStore.deleteItemAsync(ANAHTAR_DEPO_ADI);
-            setAnahtarGirisi('');
-            setPersonelAnahtari(null);
-          },
-        },
-      ]
-    );
-  }
-
   return (
     <View style={styles.disKapsayici}>
       <StatusBar barStyle="light-content" backgroundColor="#0D3B66" />
 
-      {anahtarYukleniyor ? (
+      {tokenYukleniyor ? (
         <View style={styles.govde}>
           <Text style={styles.etiket}>Yukleniyor...</Text>
         </View>
-      ) : !personelAnahtari ? (
+      ) : !erisimTokeni ? (
         <View style={styles.govde}>
           <View style={styles.durumKutusu}>
-            <Text style={styles.etiket}>PERSONEL ANAHTARI</Text>
+            <Text style={styles.etiket}>KULLANICI ADI</Text>
             <TextInput
               style={styles.anahtarGirisAlani}
-              value={anahtarGirisi}
-              onChangeText={setAnahtarGirisi}
-              placeholder="Anahtari girin"
+              value={kullaniciAdiGirisi}
+              onChangeText={setKullaniciAdiGirisi}
+              placeholder="Kullanici adinizi girin"
+              autoCapitalize="none"
+            />
+          </View>
+          <View style={styles.durumKutusu}>
+            <Text style={styles.etiket}>SIFRE</Text>
+            <TextInput
+              style={styles.anahtarGirisAlani}
+              value={sifreGirisi}
+              onChangeText={setSifreGirisi}
+              placeholder="Sifrenizi girin"
               secureTextEntry
               autoCapitalize="none"
             />
           </View>
-          <TouchableOpacity style={[styles.buyukButon, styles.bitirButon]} onPress={anahtariKaydet}>
-            <Text style={styles.buyukButonYazi}>KAYDET</Text>
+          {girisHatasi ? <Text style={styles.hataYazisi}>{girisHatasi}</Text> : null}
+          <TouchableOpacity
+            style={[styles.buyukButon, styles.bitirButon, girisYapiliyor && styles.pasifButon]}
+            onPress={girisYap}
+            disabled={girisYapiliyor}
+          >
+            <Text style={styles.buyukButonYazi}>{girisYapiliyor ? 'GIRIS YAPILIYOR...' : 'GIRIS YAP'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -232,8 +303,8 @@ export default function App() {
               <Text style={styles.buyukButonYazi}>ACIL DURUMU BITIR</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.anahtarDegistirButon} onPress={anahtariDegistir}>
-              <Text style={styles.anahtarDegistirYazi}>Anahtari Degistir</Text>
+            <TouchableOpacity style={styles.anahtarDegistirButon} onPress={oturumuKapat}>
+              <Text style={styles.anahtarDegistirYazi}>Cikis Yap</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -271,6 +342,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0D3B66',
   },
+  hataYazisi: { color: '#C62828', marginBottom: 12, fontSize: 13 },
   etiket: { fontSize: 12, fontWeight: 'bold', color: '#5B7A8F', letterSpacing: 0.5, marginBottom: 6 },
   degerYazi: { fontSize: 16, color: '#0D3B66', fontWeight: '500' },
   satirIci: { flexDirection: 'row', alignItems: 'center' },
