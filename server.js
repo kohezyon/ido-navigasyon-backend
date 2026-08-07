@@ -132,7 +132,7 @@ io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
     soket.on('acil-durum-baslat', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
             return;
         }
@@ -145,7 +145,7 @@ io.on('connection', (soket) => {
     });
 
     soket.on('acil-durum-bitir', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
             return;
         }
@@ -157,7 +157,7 @@ io.on('connection', (soket) => {
     });
 
     soket.on('yolcu-sayisi-guncelle', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
             return;
         }
