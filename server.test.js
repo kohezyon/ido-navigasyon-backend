@@ -42,6 +42,24 @@ describe('POST /login', () => {
         expect(typeof yanit.body.yenilemeTokeni).toBe('string');
         expect(yanit.body.rol).toBe('kaptan');
     });
+
+    it('kullanici bulunamasa bile sifreDogrula cagrilir (zamanlama kanali korumasi)', async () => {
+        // Not: server.js sifreDogrula'yi `const { sifreDogrula } = require('./sifreYardimcisi.js')`
+        // ile modul yuklenirken destructure edip yerel bir sabite baglar. Bu yuzden
+        // vi.spyOn(sifreYardimcisiModulu, 'sifreDogrula') server.js'in cagirdigi
+        // referansi degistirmez ve casus hic tetiklenmez (yanlis-pozitif/negatif verir).
+        // Bunun yerine sifreYardimcisi.js'in cagirdigi bcryptjs.compare'i casuslariz;
+        // bcrypt.compare her seferinde modul nesnesi uzerinden (property access ile)
+        // cagrildigi icin gercek zincir server.js -> sifreDogrula -> bcrypt.compare
+        // buradan gercekten yakalanir.
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [] });
+        const bcrypt = require('bcryptjs');
+        const casusBcryptCompare = vi.spyOn(bcrypt, 'compare');
+
+        await request(app).post('/login').send({ kullanici_adi: 'yok', sifre: 'her-hangi-bir-sey' });
+
+        expect(casusBcryptCompare).toHaveBeenCalled();
+    });
 });
 
 describe('POST /reset-gemi', () => {

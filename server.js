@@ -29,6 +29,7 @@ const havuz = new Pool({
 const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
 const PERSONEL_ANAHTARI = process.env.PERSONEL_ANAHTARI;
 const JWT_GIZLI_ANAHTARI = process.env.JWT_GIZLI_ANAHTARI;
+const SAHTE_SIFRE_HASH = require('bcryptjs').hashSync('sahte-sifre-zamanlama-korumasi', 10);
 
 let gemiKonumu = {
     enlem: 40.6500,
@@ -253,7 +254,9 @@ app.post('/login', async (req, res) => {
 
     try {
         const kullanici = await kullaniciAdiylaBul(havuz, kullanici_adi);
-        if (!kullanici || !(await sifreDogrula(sifre, kullanici.sifre_hash))) {
+        const hashKarsilastir = kullanici ? kullanici.sifre_hash : SAHTE_SIFRE_HASH;
+        const sifreGecerli = await sifreDogrula(sifre, hashKarsilastir);
+        if (!kullanici || !sifreGecerli) {
             return res.status(401).json({ hata: 'Gecersiz kullanici adi veya sifre' });
         }
 
