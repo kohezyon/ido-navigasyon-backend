@@ -11,6 +11,7 @@ const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
 const { sifreDogrula } = require('./sifreYardimcisi.js');
 const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
 const { kullaniciAdiylaBul } = require('./personelRepo.js');
+const { jwtDogrulaMiddleware } = require('./restAuth.js');
 
 const app = express();
 const izinVerilenOrijinler = izinliOrijinListesi(process.env.ALLOWED_ORIGINS);
@@ -204,15 +205,12 @@ io.on('connection', (soket) => {
         console.log('Bir cihaz ayrildi. ID:', soket.id);
     });
 });
-app.post('/reset-gemi', (req, res) => {
-    if (!anahtarDogrula(req.body?.anahtar, PERSONEL_ANAHTARI)) {
-        return res.status(401).json({ hata: 'Yetkisiz istek' });
-    }
+app.post('/reset-gemi', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), (req, res) => {
     gemiKonumu.enlem = baslangicKonumu.enlem;
     gemiKonumu.boylam = baslangicKonumu.boylam;
     suankiHedefIndex = 0;
     varisBildirimiGonderildi = false;
-    console.log('GEMI SIFIRLANDI');
+    console.log('GEMI SIFIRLANDI. Kullanici:', req.kullanici.kullanici_adi);
     res.json({ tamam: true });
 });
 app.get('/tum-noktalar', async (req, res) => {

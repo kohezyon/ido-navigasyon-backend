@@ -10,6 +10,7 @@ const { app, havuz, sunucu } = require('./server.js');
 
 const { sifreHashle } = require('./sifreYardimcisi.js');
 const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
+const { erisimTokeniOlustur } = require('./jwtYardimcisi.js');
 
 describe('POST /login', () => {
     afterEach(() => {
@@ -86,18 +87,40 @@ describe('POST /token/yenile', () => {
 });
 
 describe('POST /reset-gemi', () => {
-    it('anahtar gonderilmezse 401 doner', async () => {
+    it('Authorization basligi yoksa 401 doner', async () => {
         const yanit = await request(app).post('/reset-gemi').send({});
         expect(yanit.status).toBe(401);
     });
 
-    it('yanlis anahtarla 401 doner', async () => {
-        const yanit = await request(app).post('/reset-gemi').send({ anahtar: 'yanlis-anahtar' });
+    it('gecersiz token ile 401 doner', async () => {
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Authorization', 'Bearer bozuk.token.degeri')
+            .send({});
         expect(yanit.status).toBe(401);
     });
 
-    it('dogru anahtarla 200 doner ve gemiyi sifirlar', async () => {
-        const yanit = await request(app).post('/reset-gemi').send({ anahtar: 'test-ortami-anahtari' });
+    it('personel rolundeki gecerli token ile 403 doner', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Authorization', `Bearer ${token}`)
+            .send({});
+        expect(yanit.status).toBe(403);
+    });
+
+    it('kaptan rolundeki gecerli token ile 200 doner ve gemiyi sifirlar', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Authorization', `Bearer ${token}`)
+            .send({});
         expect(yanit.status).toBe(200);
         expect(yanit.body).toEqual({ tamam: true });
     });
@@ -121,11 +144,15 @@ describe('sunucuHatasiYanitla', () => {
 });
 
 describe('REST uclarinda CORS', () => {
+    const gecerliToken = () =>
+        erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+
     it('izin verilmeyen origin ile POST /reset-gemi 403 doner', async () => {
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Origin', 'https://kotu-site.com')
-            .send({ anahtar: 'test-ortami-anahtari' });
+            .set('Authorization', `Bearer ${gecerliToken()}`)
+            .send({});
         expect(yanit.status).toBe(403);
     });
 
@@ -133,7 +160,8 @@ describe('REST uclarinda CORS', () => {
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Origin', 'https://izinli-site.com')
-            .send({ anahtar: 'test-ortami-anahtari' });
+            .set('Authorization', `Bearer ${gecerliToken()}`)
+            .send({});
         expect(yanit.status).toBe(200);
         expect(yanit.headers['access-control-allow-origin']).toBe('https://izinli-site.com');
     });
@@ -141,7 +169,8 @@ describe('REST uclarinda CORS', () => {
     it('origin header i olmadan (mobil istemci) istek normal calisir', async () => {
         const yanit = await request(app)
             .post('/reset-gemi')
-            .send({ anahtar: 'test-ortami-anahtari' });
+            .set('Authorization', `Bearer ${gecerliToken()}`)
+            .send({});
         expect(yanit.status).toBe(200);
         expect(yanit.headers['access-control-allow-origin']).toBeUndefined();
     });
