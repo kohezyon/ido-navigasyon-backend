@@ -9,6 +9,7 @@ const { io: ioClient } = require('socket.io-client');
 const { app, havuz, sunucu } = require('./server.js');
 
 const { sifreHashle } = require('./sifreYardimcisi.js');
+const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
 
 describe('POST /login', () => {
     afterEach(() => {
@@ -59,6 +60,28 @@ describe('POST /login', () => {
         await request(app).post('/login').send({ kullanici_adi: 'yok', sifre: 'her-hangi-bir-sey' });
 
         expect(casusBcryptCompare).toHaveBeenCalled();
+    });
+});
+
+describe('POST /token/yenile', () => {
+    it('gecersiz token ile 401 doner', async () => {
+        const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: 'bozuk.token.degeri' });
+        expect(yanit.status).toBe(401);
+    });
+
+    it('yenilemeTokeni eksikse 401 doner', async () => {
+        const yanit = await request(app).post('/token/yenile').send({});
+        expect(yanit.status).toBe(401);
+    });
+
+    it('gecerli yenileme tokeni ile yeni erisim tokeni doner', async () => {
+        const yenileme = yenilemeTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const yanit = await request(app).post('/token/yenile').send({ yenilemeTokeni: yenileme });
+        expect(yanit.status).toBe(200);
+        expect(typeof yanit.body.erisimTokeni).toBe('string');
     });
 });
 

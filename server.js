@@ -271,6 +271,16 @@ app.post('/login', async (req, res) => {
     }
 });
 
+app.post('/token/yenile', (req, res) => {
+    const { yenilemeTokeni } = req.body || {};
+    const payload = typeof yenilemeTokeni === 'string' ? tokenDogrula(yenilemeTokeni, JWT_GIZLI_ANAHTARI) : null;
+    if (!payload) {
+        return res.status(401).json({ hata: 'Gecersiz veya suresi dolmus token' });
+    }
+    const yeniPayload = { id: payload.id, kullanici_adi: payload.kullanici_adi, rol: payload.rol };
+    res.json({ erisimTokeni: erisimTokeniOlustur(yeniPayload, JWT_GIZLI_ANAHTARI) });
+});
+
 app.post('/geri-bildirim', (req, res) => {
     console.log('GERI BILDIRIM ALINDI:', req.body);
     res.json({ tamam: true });
