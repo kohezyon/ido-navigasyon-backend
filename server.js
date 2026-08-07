@@ -8,6 +8,9 @@ const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { anahtarDogrula } = require('./auth.js');
 const { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware } = require('./cors.js');
 const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
+const { sifreDogrula } = require('./sifreYardimcisi.js');
+const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
+const { kullaniciAdiylaBul } = require('./personelRepo.js');
 
 const app = express();
 const izinVerilenOrijinler = izinliOrijinListesi(process.env.ALLOWED_ORIGINS);
@@ -25,6 +28,7 @@ const havuz = new Pool({
 });
 const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
 const PERSONEL_ANAHTARI = process.env.PERSONEL_ANAHTARI;
+const JWT_GIZLI_ANAHTARI = process.env.JWT_GIZLI_ANAHTARI;
 
 let gemiKonumu = {
     enlem: 40.6500,
@@ -238,6 +242,29 @@ app.get('/hava-durumu', async (req, res) => {
         });
     } catch (hata) {
         sunucuHatasiYanitla(res, hata, 'Hava durumu alinamadi');
+    }
+});
+
+app.post('/login', async (req, res) => {
+    const { kullanici_adi, sifre } = req.body || {};
+    if (typeof kullanici_adi !== 'string' || typeof sifre !== 'string') {
+        return res.status(400).json({ hata: 'Gecersiz istek' });
+    }
+
+    try {
+        const kullanici = await kullaniciAdiylaBul(havuz, kullanici_adi);
+        if (!kullanici || !(await sifreDogrula(sifre, kullanici.sifre_hash))) {
+            return res.status(401).json({ hata: 'Gecersiz kullanici adi veya sifre' });
+        }
+
+        const payload = { id: kullanici.id, kullanici_adi: kullanici.kullanici_adi, rol: kullanici.rol };
+        res.json({
+            erisimTokeni: erisimTokeniOlustur(payload, JWT_GIZLI_ANAHTARI),
+            yenilemeTokeni: yenilemeTokeniOlustur(payload, JWT_GIZLI_ANAHTARI),
+            rol: kullanici.rol
+        });
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Giris yapilamadi');
     }
 });
 

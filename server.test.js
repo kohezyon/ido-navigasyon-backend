@@ -1,11 +1,48 @@
 process.env.PERSONEL_ANAHTARI = 'test-ortami-anahtari';
+process.env.JWT_GIZLI_ANAHTARI = 'test-jwt-gizli-anahtari';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/test';
 process.env.ALLOWED_ORIGINS = 'https://izinli-site.com';
 
-import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, beforeAll, vi } from 'vitest';
 const request = require('supertest');
 const { io: ioClient } = require('socket.io-client');
 const { app, havuz, sunucu } = require('./server.js');
+
+const { sifreHashle } = require('./sifreYardimcisi.js');
+
+describe('POST /login', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('kullanici bulunamazsa 401 doner ve genel mesaj verir', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [] });
+        const yanit = await request(app).post('/login').send({ kullanici_adi: 'yok', sifre: 'x' });
+        expect(yanit.status).toBe(401);
+        expect(yanit.body).toEqual({ hata: 'Gecersiz kullanici adi veya sifre' });
+    });
+
+    it('yanlis sifre ile 401 doner', async () => {
+        const hash = await sifreHashle('dogru-sifre');
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({
+            rows: [{ id: 1, kullanici_adi: 'kaptan1', sifre_hash: hash, rol: 'kaptan' }]
+        });
+        const yanit = await request(app).post('/login').send({ kullanici_adi: 'kaptan1', sifre: 'yanlis-sifre' });
+        expect(yanit.status).toBe(401);
+    });
+
+    it('dogru bilgilerle token ciftini ve rolu doner', async () => {
+        const hash = await sifreHashle('dogru-sifre');
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({
+            rows: [{ id: 1, kullanici_adi: 'kaptan1', sifre_hash: hash, rol: 'kaptan' }]
+        });
+        const yanit = await request(app).post('/login').send({ kullanici_adi: 'kaptan1', sifre: 'dogru-sifre' });
+        expect(yanit.status).toBe(200);
+        expect(typeof yanit.body.erisimTokeni).toBe('string');
+        expect(typeof yanit.body.yenilemeTokeni).toBe('string');
+        expect(yanit.body.rol).toBe('kaptan');
+    });
+});
 
 describe('POST /reset-gemi', () => {
     it('anahtar gonderilmezse 401 doner', async () => {
