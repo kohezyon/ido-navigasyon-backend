@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { anahtarDogrula } = require('./auth.js');
 const { izinliOrijinListesi, corsOrijinKontrolu } = require('./cors.js');
+const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
 
 const app = express();
 app.use(express.json());
@@ -138,6 +139,10 @@ io.on('connection', (soket) => {
             console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
             return;
         }
+        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            return;
+        }
         console.log('ACIL DURUM BASLATILDI:', bilgi);
         io.emit('acil-durum-uyarisi', {
             mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
@@ -151,6 +156,10 @@ io.on('connection', (soket) => {
             console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
             return;
         }
+        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            return;
+        }
         console.log('ACIL DURUM BITIRILDI:', bilgi);
         io.emit('acil-durum-bitti', {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
@@ -161,6 +170,10 @@ io.on('connection', (soket) => {
     soket.on('yolcu-sayisi-guncelle', (bilgi) => {
         if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            return;
+        }
+        if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
             return;
         }
         console.log('YOLCU SAYISI GUNCELLENDI:', bilgi);
