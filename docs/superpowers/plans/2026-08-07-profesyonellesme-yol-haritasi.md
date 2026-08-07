@@ -12,20 +12,20 @@
 
 Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel güvenliğini etkileyen açık kapatılıyor, sonra tek-gemi kısıtı kaldırılıyor, sonra gerçek GPS entegre ediliyor, en son operasyonel olgunluk (test/izleme/mobil UX) ekleniyor.
 
-| Faz | Konu | Öncelik | Tahmini efor |
-|---|---|---|---|
-| 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) |
-| 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) |
-| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) |
-| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) |
-| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) |
-| 5 | Test & CI/CD | Orta | Orta (1 hafta) |
-| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) |
-| 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta |
+| Faz | Konu | Öncelik | Tahmini efor | Durum |
+|---|---|---|---|---|
+| 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) | ✅ Tamamlandı |
+| 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | - |
+| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | - |
+| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | - |
+| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
+| 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
+| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
+| 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
 
 ---
 
-## Faz 0 — Acil Güvenlik Yaması
+## Faz 0 — Acil Güvenlik Yaması ✅ Tamamlandı (2026-08-07)
 
 **Neden hemen:** `PERSONEL_ANAHTARI`, personel mobil uygulamasında `EXPO_PUBLIC_` öneki ile tanımlı — yani derlenen APK/IPA içine gömülüyor ve herkes tarafından çıkarılabilir. Bu anahtarla dışarıdan biri sahte "acil durum" / tahliye alarmı yayınlayabilir. Bu bir güvenlik açığından öte, **yolcu güvenliği riski**.
 
@@ -100,4 +100,4 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 ## Sonraki adım
 
-Hangi fazdan başlamak istersin? Önerim **Faz 0** (acil güvenlik yaması) — küçük, hızlı, ve şu anki en büyük riski kapatıyor. Seçtiğin faz için `superpowers:writing-plans` ile adım adım (test-driven, dosya bazlı) bir uygulama planı çıkaracağım.
+**Faz 0 tamamlandı** (bkz. `2026-08-07-faz0-guvenlik-yamasi.md`, `main`'e merge edildi, 26/26 test yeşil). Sıradaki: **Faz 1** (gerçek kimlik doğrulama & yetkilendirme) — geçici paylaşılan-anahtar modelini kalıcı olarak ortadan kaldıracak adım. `superpowers:writing-plans` ile adım adım (test-driven, dosya bazlı) bir uygulama planı çıkarılacak.

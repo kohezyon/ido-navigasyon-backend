@@ -864,11 +864,11 @@ git commit -m "fix: personel anahtarini build-time env yerine calisma zamaninda 
 
 ## Faz 0 Tamamlandığında
 
-- [ ] `npm test` (backend) tüm testleri yeşil geçiyor.
-- [ ] `/reset-gemi` anahtarsız/yanlış anahtarla 401 dönüyor.
-- [ ] Socket event'leri (acil durum, yolcu sayısı) sabit-zamanlı doğrulama kullanıyor.
-- [ ] Socket.io CORS'u `*` değil, allowlist.
-- [ ] Socket payload'ları (`gemi_adi`, `sayi`) doğrulanıyor.
-- [ ] `/tum-noktalar` ve `/hava-durumu` client'a ham hata mesajı döndürmüyor.
-- [ ] Personel app'te anahtar build'e gömülü değil, SecureStore'da.
-- [ ] Roadmap dosyasında (`2026-08-07-profesyonellesme-yol-haritasi.md`) Faz 0 tamamlandı olarak işaretlendi.
+- [x] `npm test` (backend) tüm testleri yeşil geçiyor. (26/26, 2026-08-07 doğrulandı)
+- [x] `/reset-gemi` anahtarsız/yanlış anahtarla 401 dönüyor.
+- [x] Socket event'leri (acil durum, yolcu sayısı) sabit-zamanlı doğrulama kullanıyor.
+- [x] Socket.io CORS'u `*` değil, allowlist.
+- [x] Socket payload'ları (`gemi_adi`, `sayi`) doğrulanıyor.
+- [x] `/tum-noktalar` ve `/hava-durumu` client'a ham hata mesajı döndürmüyor.
+- [x] Personel app'te anahtar build'e gömülü değil, SecureStore'da.
+- [x] Roadmap dosyasında (`2026-08-07-profesyonellesme-yol-haritasi.md`) Faz 0 tamamlandı olarak işaretlendi.
