@@ -16,10 +16,16 @@ export default function App() {
   const soketRef = useRef(null);
 
   useEffect(() => {
-    SecureStore.getItemAsync(ANAHTAR_DEPO_ADI).then((deger) => {
-      setPersonelAnahtari(deger);
-      setAnahtarYukleniyor(false);
-    });
+    SecureStore.getItemAsync(ANAHTAR_DEPO_ADI)
+      .then((deger) => {
+        setPersonelAnahtari(deger);
+      })
+      .catch(() => {
+        setPersonelAnahtari(null);
+      })
+      .finally(() => {
+        setAnahtarYukleniyor(false);
+      });
   }, []);
 
   useEffect(() => {
