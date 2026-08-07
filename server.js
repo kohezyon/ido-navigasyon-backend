@@ -145,7 +145,13 @@ async function konumKontrolVeYayinla() {
 
 io.use((soket, next) => {
     const token = soket.handshake.auth?.token;
-    const payload = typeof token === 'string' ? tokenDogrula(token, JWT_GIZLI_ANAHTARI) : null;
+    if (typeof token !== 'string') {
+        // Token yok: yolcu app gibi kimliksiz istemciler icin salt-okunur/dinleyici
+        // baglantiya izin verilir. Yetki gerektiren event'ler (acil-durum-*,
+        // yolcu-sayisi-guncelle) kendi handler'larinda soket.data.kullanici'yi kontrol eder.
+        return next();
+    }
+    const payload = tokenDogrula(token, JWT_GIZLI_ANAHTARI);
     if (!payload || payload.tur !== 'erisim') {
         return next(new Error('Yetkisiz'));
     }
@@ -162,6 +168,11 @@ io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
     soket.on('acil-durum-baslat', (bilgi, geriBildir) => {
+        if (!soket.data.kullanici) {
+            console.log('KIMLIKSIZ baglanti ile acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+            return;
+        }
         if (oturumSuresiDolduMu(soket)) {
             console.log('SURESI DOLMUS TOKEN ile acil-durum-baslat denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Oturum suresi doldu' });
@@ -187,6 +198,11 @@ io.on('connection', (soket) => {
     });
 
     soket.on('acil-durum-bitir', (bilgi, geriBildir) => {
+        if (!soket.data.kullanici) {
+            console.log('KIMLIKSIZ baglanti ile acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+            return;
+        }
         if (oturumSuresiDolduMu(soket)) {
             console.log('SURESI DOLMUS TOKEN ile acil-durum-bitir denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Oturum suresi doldu' });
@@ -211,6 +227,11 @@ io.on('connection', (soket) => {
     });
 
     soket.on('yolcu-sayisi-guncelle', (bilgi, geriBildir) => {
+        if (!soket.data.kullanici) {
+            console.log('KIMLIKSIZ baglanti ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+            return;
+        }
         if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
             console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });

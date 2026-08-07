@@ -259,10 +259,41 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         await new Promise((resolve) => sunucu.close(resolve));
     });
 
-    it('token gonderilmezse baglanti reddedilir', async () => {
+    it('token gonderilmezse baglanti kurulur (yolcu app icin anonim/dinleyici erisim)', async () => {
         const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
-        const hata = await new Promise((resolve) => gonderen.on('connect_error', resolve));
-        expect(hata.message).toBe('Yetkisiz');
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+        expect(gonderen.connected).toBe(true);
+        gonderen.disconnect();
+    });
+
+    it('anonim (tokensiz) baglanti kaptan tarafindan baslatilan acil-durum-uyarisini alir', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const kaptan = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const yolcu = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => kaptan.on('connect', resolve));
+        await new Promise((resolve) => yolcu.on('connect', resolve));
+
+        const uyariPromise = new Promise((resolve) => yolcu.on('acil-durum-uyarisi', resolve));
+        kaptan.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, () => {});
+        const uyari = await uyariPromise;
+
+        expect(uyari.gemi).toBe('Test Gemisi');
+        kaptan.disconnect();
+        yolcu.disconnect();
+    });
+
+    it('anonim (tokensiz) baglanti acil-durum-baslat gonderirse Yetkisiz doner', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
         gonderen.disconnect();
     });
 
@@ -372,6 +403,18 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
         expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Test Gemisi' });
         gonderen.disconnect();
         dinleyici.disconnect();
+    });
+
+    it('anonim (tokensiz) baglanti yolcu-sayisi-guncelle gonderirse Yetkisiz doner', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3, gemi_adi: 'Test Gemisi' }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
+        gonderen.disconnect();
     });
 });
 
