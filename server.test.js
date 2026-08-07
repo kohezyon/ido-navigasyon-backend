@@ -35,6 +35,7 @@ describe('sunucuHatasiYanitla', () => {
 
         expect(sahteRes.status).toHaveBeenCalledWith(500);
         expect(sahteRes.json).toHaveBeenCalledWith({ hata: 'Ilgi noktalari alinamadi' });
+        expect(consoleSpy).toHaveBeenCalledWith('Ilgi noktalari alinamadi:', hata.message);
         consoleSpy.mockRestore();
     });
 });
