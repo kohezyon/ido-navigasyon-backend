@@ -1,9 +1,10 @@
 process.env.PERSONEL_ANAHTARI = 'test-ortami-anahtari';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/test';
 
-import { describe, it, expect, afterAll, vi } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest';
 const request = require('supertest');
-const { app, havuz } = require('./server.js');
+const { io: ioClient } = require('socket.io-client');
+const { app, havuz, sunucu } = require('./server.js');
 
 describe('POST /reset-gemi', () => {
     it('anahtar gonderilmezse 401 doner', async () => {
@@ -37,6 +38,101 @@ describe('sunucuHatasiYanitla', () => {
         expect(sahteRes.json).toHaveBeenCalledWith({ hata: 'Ilgi noktalari alinamadi' });
         expect(consoleSpy).toHaveBeenCalledWith('Ilgi noktalari alinamadi:', hata.message);
         consoleSpy.mockRestore();
+    });
+});
+
+describe('bozuk JSON govdesi', () => {
+    it('gecersiz JSON gonderildiginde yigin izi sizdirmadan 400 doner', async () => {
+        const yanit = await request(app)
+            .post('/reset-gemi')
+            .set('Content-Type', 'application/json')
+            .send('{bozuk');
+        expect(yanit.status).toBe(400);
+        expect(yanit.body).toEqual({ hata: 'Istek islenemedi' });
+        expect(JSON.stringify(yanit.body)).not.toMatch(/at .*\.js:\d+/);
+    });
+});
+
+describe('acil-durum-baslat socket yetkilendirmesi', () => {
+    let sunucuPortu;
+
+    beforeAll(async () => {
+        await new Promise((resolve) => sunucu.listen(0, resolve));
+        sunucuPortu = sunucu.address().port;
+    });
+
+    afterAll(async () => {
+        await new Promise((resolve) => sunucu.close(resolve));
+    });
+
+    it('yanlis anahtarla acil-durum-uyarisi yayinlanmaz', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => dinleyici.on('connect', resolve));
+
+        let uyariAlindi = false;
+        dinleyici.on('acil-durum-uyarisi', () => { uyariAlindi = true; });
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi', anahtar: 'yanlis-anahtar' }, resolve);
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
+        expect(uyariAlindi).toBe(false);
+        gonderen.disconnect();
+        dinleyici.disconnect();
+    });
+
+    it('dogru anahtarla acil-durum-uyarisi yayinlanir', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => dinleyici.on('connect', resolve));
+
+        const uyariPromise = new Promise((resolve) => dinleyici.on('acil-durum-uyarisi', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi', anahtar: 'test-ortami-anahtari' }, resolve);
+        });
+        const uyari = await uyariPromise;
+
+        expect(yanit).toEqual({ tamam: true });
+        expect(uyari.gemi).toBe('Test Gemisi');
+        gonderen.disconnect();
+        dinleyici.disconnect();
+    });
+});
+
+describe('yolcu-sayisi-guncelle anahtar sizintisi korumasi', () => {
+    let sunucuPortu;
+
+    beforeAll(async () => {
+        await new Promise((resolve) => sunucu.listen(0, resolve));
+        sunucuPortu = sunucu.address().port;
+    });
+
+    afterAll(async () => {
+        await new Promise((resolve) => sunucu.close(resolve));
+    });
+
+    it('yolcu-sayisi-yayin yayininda anahtar alani bulunmaz', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => dinleyici.on('connect', resolve));
+
+        const yayinPromise = new Promise((resolve) => dinleyici.on('yolcu-sayisi-yayin', resolve));
+
+        gonderen.emit(
+            'yolcu-sayisi-guncelle',
+            { sayi: 3, gemi_adi: 'Test Gemisi', anahtar: 'test-ortami-anahtari' },
+            () => {}
+        );
+        const yayin = await yayinPromise;
+
+        expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Test Gemisi' });
+        expect(yayin.anahtar).toBeUndefined();
+        gonderen.disconnect();
+        dinleyici.disconnect();
     });
 });
 
