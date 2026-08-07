@@ -5,7 +5,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
-const { anahtarDogrula } = require('./auth.js');
 const { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware } = require('./cors.js');
 const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
 const { sifreDogrula } = require('./sifreYardimcisi.js');
@@ -28,7 +27,6 @@ const havuz = new Pool({
     ssl: { rejectUnauthorized: true }
 });
 const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
-const PERSONEL_ANAHTARI = process.env.PERSONEL_ANAHTARI;
 const JWT_GIZLI_ANAHTARI = process.env.JWT_GIZLI_ANAHTARI;
 const SAHTE_SIFRE_HASH = require('bcryptjs').hashSync('sahte-sifre-zamanlama-korumasi', 10);
 
