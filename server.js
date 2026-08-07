@@ -6,13 +6,15 @@ const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { anahtarDogrula } = require('./auth.js');
+const { izinliOrijinListesi, corsOrijinKontrolu } = require('./cors.js');
 
 const app = express();
 app.use(express.json());
 const sunucu = http.createServer(app);
 
+const izinVerilenOrijinler = izinliOrijinListesi(process.env.ALLOWED_ORIGINS);
 const io = new Server(sunucu, {
-    cors: { origin: "*" }
+    cors: { origin: corsOrijinKontrolu(izinVerilenOrijinler) }
 });
 
 const havuz = new Pool({
