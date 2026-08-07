@@ -1,7 +1,7 @@
 process.env.PERSONEL_ANAHTARI = 'test-ortami-anahtari';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/test';
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 const request = require('supertest');
 const { app, havuz } = require('./server.js');
 
@@ -20,6 +20,22 @@ describe('POST /reset-gemi', () => {
         const yanit = await request(app).post('/reset-gemi').send({ anahtar: 'test-ortami-anahtari' });
         expect(yanit.status).toBe(200);
         expect(yanit.body).toEqual({ tamam: true });
+    });
+});
+
+const { sunucuHatasiYanitla } = require('./server.js');
+
+describe('sunucuHatasiYanitla', () => {
+    it('client a genel mesaji doner, hata detayini sizdirmaz', () => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const sahteRes = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+        const hata = new Error('SELECT basarisiz: baglanti dizesi hatali kullanici adi icerir');
+
+        sunucuHatasiYanitla(sahteRes, hata, 'Ilgi noktalari alinamadi');
+
+        expect(sahteRes.status).toHaveBeenCalledWith(500);
+        expect(sahteRes.json).toHaveBeenCalledWith({ hata: 'Ilgi noktalari alinamadi' });
+        consoleSpy.mockRestore();
     });
 });
 

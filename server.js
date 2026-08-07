@@ -88,6 +88,11 @@ function kalanToplamMesafeHesapla() {
     return kalan;
 }
 
+function sunucuHatasiYanitla(res, hata, genelMesaj) {
+    console.error(genelMesaj + ':', hata.message);
+    res.status(500).json({ hata: genelMesaj });
+}
+
 async function konumKontrolVeYayinla() {
     sahteGpsGuncelle();
 
@@ -202,7 +207,7 @@ app.get('/tum-noktalar', async (req, res) => {
         );
         res.json(sonuc.rows);
     } catch (hata) {
-        res.status(500).json({ hata: hata.message });
+        sunucuHatasiYanitla(res, hata, 'Ilgi noktalari alinamadi');
     }
 });
 
@@ -213,7 +218,7 @@ app.get('/hava-durumu', async (req, res) => {
         const veri = await yanit.json();
 
         if (veri.cod && veri.cod !== 200) {
-            return res.status(500).json({ hata: veri.message || 'Hava durumu alinamadi' });
+            return sunucuHatasiYanitla(res, new Error(veri.message || 'Hava durumu alinamadi'), 'Hava durumu alinamadi');
         }
 
         res.json({
@@ -222,7 +227,7 @@ app.get('/hava-durumu', async (req, res) => {
             ruzgarHizi: Math.round(veri.wind.speed * 3.6) // m/s -> km/s
         });
     } catch (hata) {
-        res.status(500).json({ hata: hata.message });
+        sunucuHatasiYanitla(res, hata, 'Hava durumu alinamadi');
     }
 });
 
@@ -240,4 +245,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, sunucu, havuz };
+module.exports = { app, sunucu, havuz, sunucuHatasiYanitla };
