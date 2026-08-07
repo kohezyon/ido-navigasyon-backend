@@ -5,12 +5,17 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
+const { anahtarDogrula } = require('./auth.js');
+const { izinliOrijinListesi, corsOrijinKontrolu } = require('./cors.js');
+const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
 
 const app = express();
+app.use(express.json());
 const sunucu = http.createServer(app);
 
+const izinVerilenOrijinler = izinliOrijinListesi(process.env.ALLOWED_ORIGINS);
 const io = new Server(sunucu, {
-    cors: { origin: "*" }
+    cors: { origin: corsOrijinKontrolu(izinVerilenOrijinler) }
 });
 
 const havuz = new Pool({
@@ -83,6 +88,11 @@ function kalanToplamMesafeHesapla() {
     return kalan;
 }
 
+function sunucuHatasiYanitla(res, hata, genelMesaj) {
+    console.error(genelMesaj + ':', hata.message);
+    res.status(500).json({ hata: genelMesaj });
+}
+
 async function konumKontrolVeYayinla() {
     sahteGpsGuncelle();
 
@@ -129,38 +139,59 @@ async function konumKontrolVeYayinla() {
 io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
-    soket.on('acil-durum-baslat', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+    soket.on('acil-durum-baslat', (bilgi, geriBildir) => {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
-        console.log('ACIL DURUM BASLATILDI:', bilgi);
+        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
+            return;
+        }
+        console.log('ACIL DURUM BASLATILDI:', { gemi: bilgi.gemi_adi });
         io.emit('acil-durum-uyarisi', {
             mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
             gemi: bilgi.gemi_adi,
             zaman: new Date().toISOString()
         });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
-    soket.on('acil-durum-bitir', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+    soket.on('acil-durum-bitir', (bilgi, geriBildir) => {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
-        console.log('ACIL DURUM BITIRILDI:', bilgi);
+        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
+            return;
+        }
+        console.log('ACIL DURUM BITIRILDI:', { gemi: bilgi.gemi_adi });
         io.emit('acil-durum-bitti', {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
             zaman: new Date().toISOString()
         });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
-    soket.on('yolcu-sayisi-guncelle', (bilgi) => {
-        if (!PERSONEL_ANAHTARI || bilgi.anahtar !== PERSONEL_ANAHTARI) {
+    soket.on('yolcu-sayisi-guncelle', (bilgi, geriBildir) => {
+        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
             console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
-        console.log('YOLCU SAYISI GUNCELLENDI:', bilgi);
-        io.emit('yolcu-sayisi-yayin', bilgi);
+        if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+            console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
+            return;
+        }
+        console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
+        io.emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
     soket.on('disconnect', () => {
@@ -168,6 +199,9 @@ io.on('connection', (soket) => {
     });
 });
 app.post('/reset-gemi', (req, res) => {
+    if (!anahtarDogrula(req.body?.anahtar, PERSONEL_ANAHTARI)) {
+        return res.status(401).json({ hata: 'Yetkisiz istek' });
+    }
     gemiKonumu.enlem = baslangicKonumu.enlem;
     gemiKonumu.boylam = baslangicKonumu.boylam;
     suankiHedefIndex = 0;
@@ -182,7 +216,7 @@ app.get('/tum-noktalar', async (req, res) => {
         );
         res.json(sonuc.rows);
     } catch (hata) {
-        res.status(500).json({ hata: hata.message });
+        sunucuHatasiYanitla(res, hata, 'Ilgi noktalari alinamadi');
     }
 });
 
@@ -193,7 +227,7 @@ app.get('/hava-durumu', async (req, res) => {
         const veri = await yanit.json();
 
         if (veri.cod && veri.cod !== 200) {
-            return res.status(500).json({ hata: veri.message || 'Hava durumu alinamadi' });
+            return sunucuHatasiYanitla(res, new Error(veri.message || 'Hava durumu alinamadi'), 'Hava durumu alinamadi');
         }
 
         res.json({
@@ -202,19 +236,27 @@ app.get('/hava-durumu', async (req, res) => {
             ruzgarHizi: Math.round(veri.wind.speed * 3.6) // m/s -> km/s
         });
     } catch (hata) {
-        res.status(500).json({ hata: hata.message });
+        sunucuHatasiYanitla(res, hata, 'Hava durumu alinamadi');
     }
 });
 
-app.use(express.json());
 app.post('/geri-bildirim', (req, res) => {
     console.log('GERI BILDIRIM ALINDI:', req.body);
     res.json({ tamam: true });
 });
 
-setInterval(konumKontrolVeYayinla, 1000);
+app.use((hata, req, res, next) => {
+    console.error('Istek hatasi:', hata.message);
+    res.status(hata.status || 500).json({ hata: 'Istek islenemedi' });
+});
 
 const PORT = process.env.PORT || 3000;
-sunucu.listen(PORT, () => {
-    console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
-});
+
+if (require.main === module) {
+    setInterval(konumKontrolVeYayinla, 1000);
+    sunucu.listen(PORT, () => {
+        console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
+    });
+}
+
+module.exports = { app, sunucu, havuz, sunucuHatasiYanitla };

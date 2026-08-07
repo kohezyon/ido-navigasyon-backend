@@ -127,7 +127,6 @@ export default function App() {
 
   useEffect(() => {
     Notifications.requestPermissionsAsync();
-    fetch(SUNUCU_ADRESI + '/reset-gemi', { method: 'POST' }).catch(() => {});
 
     fetch(SUNUCU_ADRESI + '/tum-noktalar')
       .then((yanit) => yanit.json())
