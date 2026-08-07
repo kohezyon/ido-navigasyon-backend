@@ -200,34 +200,43 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         await new Promise((resolve) => sunucu.close(resolve));
     });
 
-    it('yanlis anahtarla acil-durum-uyarisi yayinlanmaz', async () => {
+    it('token gonderilmezse baglanti reddedilir', async () => {
         const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
-        await new Promise((resolve) => dinleyici.on('connect', resolve));
-
-        let uyariAlindi = false;
-        dinleyici.on('acil-durum-uyarisi', () => { uyariAlindi = true; });
-
-        const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi', anahtar: 'yanlis-anahtar' }, resolve);
-        });
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
-        expect(uyariAlindi).toBe(false);
+        const hata = await new Promise((resolve) => gonderen.on('connect_error', resolve));
+        expect(hata.message).toBe('Yetkisiz');
         gonderen.disconnect();
-        dinleyici.disconnect();
     });
 
-    it('dogru anahtarla acil-durum-uyarisi yayinlanir', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+    it('personel rolundeki token ile baglanir ama acil-durum-baslat Yetkisiz rol doner', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz rol' });
+        gonderen.disconnect();
+    });
+
+    it('kaptan rolundeki token ile acil-durum-uyarisi yayinlanir', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
         await new Promise((resolve) => dinleyici.on('connect', resolve));
 
         const uyariPromise = new Promise((resolve) => dinleyici.on('acil-durum-uyarisi', resolve));
 
         const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi', anahtar: 'test-ortami-anahtari' }, resolve);
+            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
         });
         const uyari = await uyariPromise;
 
@@ -238,7 +247,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     });
 });
 
-describe('yolcu-sayisi-guncelle anahtar sizintisi korumasi', () => {
+describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
     let sunucuPortu;
 
     beforeAll(async () => {
@@ -250,22 +259,22 @@ describe('yolcu-sayisi-guncelle anahtar sizintisi korumasi', () => {
         await new Promise((resolve) => sunucu.close(resolve));
     });
 
-    it('yolcu-sayisi-yayin yayininda anahtar alani bulunmaz', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+    it('gecerli token ile herhangi bir rol yolcu-sayisi-yayin yapabilir', async () => {
+        const token = erisimTokeniOlustur(
+            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
+            process.env.JWT_GIZLI_ANAHTARI
+        );
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
         await new Promise((resolve) => dinleyici.on('connect', resolve));
 
         const yayinPromise = new Promise((resolve) => dinleyici.on('yolcu-sayisi-yayin', resolve));
 
-        gonderen.emit(
-            'yolcu-sayisi-guncelle',
-            { sayi: 3, gemi_adi: 'Test Gemisi', anahtar: 'test-ortami-anahtari' },
-            () => {}
-        );
+        gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3, gemi_adi: 'Test Gemisi' }, () => {});
         const yayin = await yayinPromise;
 
         expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Test Gemisi' });
-        expect(yayin.anahtar).toBeUndefined();
         gonderen.disconnect();
         dinleyici.disconnect();
     });

@@ -143,13 +143,23 @@ async function konumKontrolVeYayinla() {
     }
 }
 
+io.use((soket, next) => {
+    const token = soket.handshake.auth?.token;
+    const payload = typeof token === 'string' ? tokenDogrula(token, JWT_GIZLI_ANAHTARI) : null;
+    if (!payload) {
+        return next(new Error('Yetkisiz'));
+    }
+    soket.data.kullanici = payload;
+    next();
+});
+
 io.on('connection', (soket) => {
     console.log('Yeni bir cihaz baglandi. ID:', soket.id);
 
     soket.on('acil-durum-baslat', (bilgi, geriBildir) => {
-        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
-            console.log('YETKISIZ acil-durum-baslat denemesi. ID:', soket.id);
-            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+        if (!['kaptan', 'admin'].includes(soket.data.kullanici.rol)) {
+            console.log('YETKISIZ ROL ile acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
             return;
         }
         if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
@@ -167,9 +177,9 @@ io.on('connection', (soket) => {
     });
 
     soket.on('acil-durum-bitir', (bilgi, geriBildir) => {
-        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
-            console.log('YETKISIZ acil-durum-bitir denemesi. ID:', soket.id);
-            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+        if (!['kaptan', 'admin'].includes(soket.data.kullanici.rol)) {
+            console.log('YETKISIZ ROL ile acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
             return;
         }
         if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
@@ -186,11 +196,6 @@ io.on('connection', (soket) => {
     });
 
     soket.on('yolcu-sayisi-guncelle', (bilgi, geriBildir) => {
-        if (!anahtarDogrula(bilgi?.anahtar, PERSONEL_ANAHTARI)) {
-            console.log('YETKISIZ yolcu-sayisi-guncelle denemesi. ID:', soket.id);
-            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
-            return;
-        }
         if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
             console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
