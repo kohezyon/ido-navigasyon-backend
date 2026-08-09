@@ -55,6 +55,9 @@ export default function App() {
   const [tanitimGoster, setTanitimGoster] = useState(false);
   const [tanitimIndex, setTanitimIndex] = useState(0);
   const [tanitimYuklendi, setTanitimYuklendi] = useState(false);
+  const [aktifSeferler, setAktifSeferler] = useState([]);
+  const [seciliSeferId, setSeciliSeferId] = useState(null);
+  const [seferlerYukleniyor, setSeferlerYukleniyor] = useState(true);
 
   const webViewRef = useRef(null);
   const rotaGecmisiRef = useRef([]);
@@ -78,6 +81,14 @@ export default function App() {
       }
       setTanitimYuklendi(true);
     });
+  }, []);
+
+  useEffect(() => {
+    fetch(SUNUCU_ADRESI + '/seferler/aktif')
+      .then((yanit) => yanit.json())
+      .then((veri) => setAktifSeferler(veri))
+      .catch(() => setAktifSeferler([]))
+      .finally(() => setSeferlerYukleniyor(false));
   }, []);
 
   function tanitimiKapat() {
@@ -126,15 +137,17 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!seciliSeferId) return;
+
     Notifications.requestPermissionsAsync();
 
-    fetch(SUNUCU_ADRESI + '/tum-noktalar')
+    fetch(SUNUCU_ADRESI + '/tum-noktalar?sefer_id=' + seciliSeferId)
       .then((yanit) => yanit.json())
       .then((veri) => setTumNoktalar(veri))
       .catch((hata) => console.log('Tum noktalar cekilemedi:', hata.message));
 
     function havaDurumuCek() {
-      fetch(SUNUCU_ADRESI + '/hava-durumu')
+      fetch(SUNUCU_ADRESI + '/hava-durumu?sefer_id=' + seciliSeferId)
         .then((yanit) => yanit.json())
         .then((veri) => {
           if (!veri.hata) setHavaDurumu(veri);
@@ -148,6 +161,11 @@ export default function App() {
 
     soket.on('connect', () => {
       setBaglantiDurumu('Bagli');
+      soket.emit('sefer-sec', { sefer_id: seciliSeferId }, (yanit) => {
+        if (!yanit || !yanit.tamam) {
+          setSeciliSeferId(null);
+        }
+      });
     });
 
     soket.on('disconnect', () => {
@@ -239,12 +257,17 @@ export default function App() {
       });
     });
 
+    soket.on('sefer-bitti', () => {
+      gecmiseEkle('Sefer sona erdi.');
+      setSeciliSeferId(null);
+    });
+
     return () => {
       soket.disconnect();
       Vibration.cancel();
       clearInterval(havaDurumuAralik);
     };
-  }, []);
+  }, [seciliSeferId]);
 
   function tipRengi(tip) {
     if (karanlikMod) {
@@ -328,6 +351,40 @@ export default function App() {
     </body>
     </html>
   `;
+
+  if (seferlerYukleniyor) {
+    return (
+      <View style={[styles.disKapsayici, { alignItems: 'center', justifyContent: 'center' }]}>
+        <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
+        <Text style={{ color: 'white', fontSize: 16 }}>Yukleniyor...</Text>
+      </View>
+    );
+  }
+
+  if (!seciliSeferId) {
+    return (
+      <View style={styles.disKapsayici}>
+        <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
+        <View style={{ flex: 1, padding: 24, paddingTop: 80 }}>
+          <Text style={{ color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 20 }}>Hangi gemiyi takip ediyorsun?</Text>
+          {aktifSeferler.length === 0 ? (
+            <Text style={{ color: '#CDE3F0', fontSize: 15 }}>Su an aktif bir sefer yok.</Text>
+          ) : (
+            aktifSeferler.map((sefer) => (
+              <TouchableOpacity
+                key={sefer.sefer_id}
+                style={{ backgroundColor: '#FFFFFF', padding: 18, borderRadius: 10, marginBottom: 12 }}
+                onPress={() => setSeciliSeferId(sefer.sefer_id)}
+              >
+                <Text style={{ color: '#0D3B66', fontSize: 17, fontWeight: 'bold' }}>{sefer.gemi_adi}</Text>
+                <Text style={{ color: '#5B7A8F', fontSize: 13, marginTop: 4 }}>{sefer.hat_adi}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.disKapsayici, { backgroundColor: karanlikMod ? '#0B1520' : '#0D3B66' }]}>
