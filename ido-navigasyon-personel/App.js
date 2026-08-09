@@ -60,7 +60,9 @@ export default function App() {
     setErisimTokeni(null);
     setYenilemeTokeni(null);
     setSeciliSeferId(null);
-    setEkran('yukleniyor');
+    // 'yukleniyor' render kontrolde '!erisimTokeni' kontrolunden ONCE geldigi icin,
+    // ekran burada 'yukleniyor' birakilirsa giris ekrani hic gosterilmez (kalici kilitlenme).
+    setEkran('sefer-sec');
   }
 
   async function erisimTokeniniYenile() {
