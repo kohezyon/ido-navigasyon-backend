@@ -317,6 +317,10 @@ describe('GET /hatlar', () => {
 });
 
 describe('POST /reset-gemi', () => {
+    afterEach(() => {
+        aktifSeferler.clear();
+    });
+
     it('Authorization basligi yoksa 401 doner', async () => {
         const yanit = await request(app).post('/reset-gemi').send({});
         expect(yanit.status).toBe(401);
@@ -331,40 +335,92 @@ describe('POST /reset-gemi', () => {
     });
 
     it('personel rolundeki gecerli token ile 403 doner', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Authorization', `Bearer ${token}`)
-            .send({});
+            .send({ sefer_id: 1 });
         expect(yanit.status).toBe(403);
     });
 
-    it('kaptan rolundeki gecerli token ile 200 doner ve gemiyi sifirlar', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
+    it('aktif olmayan sefer_id ile 404 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Authorization', `Bearer ${token}`)
-            .send({});
-        expect(yanit.status).toBe(200);
-        expect(yanit.body).toEqual({ tamam: true });
+            .send({ sefer_id: 999 });
+        expect(yanit.status).toBe(404);
     });
 
-    it('yenileme tokeni Bearer olarak gonderilirse (tur uyusmazligi) 401 doner', async () => {
-        const yenileme = yenilemeTokeniOlustur(
-            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
+    it('kaptan rolundeki gecerli token ile aktif seferi baslangic noktasina sifirlar', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        aktifSeferler.set(9, { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 40.5, boylam: 29.5 },
+            { ad: 'Hedef', enlem: 41.0, boylam: 29.0 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        aktifSeferler.get(9).konum.enlem = 40.9;
+
         const yanit = await request(app)
             .post('/reset-gemi')
-            .set('Authorization', `Bearer ${yenileme}`)
-            .send({});
-        expect(yanit.status).toBe(401);
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 9 });
+
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual({ tamam: true });
+        expect(aktifSeferler.get(9).konum).toEqual({ enlem: 40.5, boylam: 29.5 });
+        expect(aktifSeferler.get(9).hedefIndex).toBe(1);
+    });
+});
+
+describe('GET /tum-noktalar', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        aktifSeferler.clear();
+    });
+
+    it('sefer_id eksik veya aktif degilse 400 doner', async () => {
+        const yanit = await request(app).get('/tum-noktalar?sefer_id=999');
+        expect(yanit.status).toBe(400);
+    });
+
+    it('aktif seferin hat_id sine gore filtrelenmis noktalari doner', async () => {
+        aktifSeferler.set(3, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 7, gemiAdi: 'Gemi A' });
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [{ ad: 'Heybeliada', tip: 'ada' }] });
+
+        const yanit = await request(app).get('/tum-noktalar?sefer_id=3');
+
+        expect(yanit.status).toBe(200);
+        expect(havuz.query.mock.calls[0][1]).toEqual([7]);
+        expect(yanit.body).toEqual([{ ad: 'Heybeliada', tip: 'ada' }]);
+    });
+});
+
+describe('GET /hava-durumu', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        aktifSeferler.clear();
+    });
+
+    it('sefer_id eksik veya aktif degilse 400 doner', async () => {
+        const yanit = await request(app).get('/hava-durumu?sefer_id=999');
+        expect(yanit.status).toBe(400);
+    });
+
+    it('aktif seferin canli konumu icin hava durumu doner', async () => {
+        aktifSeferler.set(5, { ...seferStateOlustur([{ ad: 'A', enlem: 40.5, boylam: 29.5 }, { ad: 'B', enlem: 40.6, boylam: 29.6 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+            json: async () => ({
+                main: { temp: 18.4 },
+                weather: [{ description: 'acik' }],
+                wind: { speed: 5 }
+            })
+        });
+
+        const yanit = await request(app).get('/hava-durumu?sefer_id=5');
+
+        expect(yanit.status).toBe(200);
+        expect(yanit.body.sicaklik).toBe(18);
+        expect(yanit.body.aciklama).toBe('acik');
     });
 });
 
@@ -389,6 +445,18 @@ describe('REST uclarinda CORS', () => {
     const gecerliToken = () =>
         erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
 
+    afterEach(() => {
+        aktifSeferler.clear();
+    });
+
+    function aktifSeferOlustur() {
+        aktifSeferler.set(1, { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 40.5, boylam: 29.5 },
+            { ad: 'Hedef', enlem: 41.0, boylam: 29.0 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        return 1;
+    }
+
     it('izin verilmeyen origin ile POST /reset-gemi 403 doner', async () => {
         const yanit = await request(app)
             .post('/reset-gemi')
@@ -399,20 +467,22 @@ describe('REST uclarinda CORS', () => {
     });
 
     it('izin verilen origin ile POST /reset-gemi gecer ve Access-Control-Allow-Origin doner', async () => {
+        const seferId = aktifSeferOlustur();
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Origin', 'https://izinli-site.com')
             .set('Authorization', `Bearer ${gecerliToken()}`)
-            .send({});
+            .send({ sefer_id: seferId });
         expect(yanit.status).toBe(200);
         expect(yanit.headers['access-control-allow-origin']).toBe('https://izinli-site.com');
     });
 
     it('origin header i olmadan (mobil istemci) istek normal calisir', async () => {
+        const seferId = aktifSeferOlustur();
         const yanit = await request(app)
             .post('/reset-gemi')
             .set('Authorization', `Bearer ${gecerliToken()}`)
-            .send({});
+            .send({ sefer_id: seferId });
         expect(yanit.status).toBe(200);
         expect(yanit.headers['access-control-allow-origin']).toBeUndefined();
     });

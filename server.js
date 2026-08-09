@@ -324,12 +324,27 @@ app.get('/hatlar', async (req, res) => {
 });
 
 app.post('/reset-gemi', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), (req, res) => {
+    const seferId = Number(req.body?.sefer_id);
+    const sefer = aktifSeferler.get(seferId);
+    if (!sefer) {
+        return res.status(404).json({ hata: 'Aktif sefer bulunamadi' });
+    }
+    sefer.konum = { ...sefer.rotaNoktalari[0] };
+    sefer.hedefIndex = 1;
+    sefer.varisBildirimiGonderildi = false;
+    console.log('SEFER SIFIRLANDI. Sefer ID:', seferId, 'Kullanici:', req.kullanici.kullanici_adi);
     res.json({ tamam: true });
 });
 app.get('/tum-noktalar', async (req, res) => {
+    const seferId = Number(req.query.sefer_id);
+    const sefer = aktifSeferler.get(seferId);
+    if (!sefer) {
+        return res.status(400).json({ hata: 'Gecersiz veya aktif olmayan sefer_id' });
+    }
     try {
         const sonuc = await havuz.query(
-            'SELECT ad, tip, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari ORDER BY ad'
+            'SELECT ad, tip, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari WHERE hat_id IS NULL OR hat_id = $1 ORDER BY ad',
+            [sefer.hatId]
         );
         res.json(sonuc.rows);
     } catch (hata) {
@@ -338,8 +353,13 @@ app.get('/tum-noktalar', async (req, res) => {
 });
 
 app.get('/hava-durumu', async (req, res) => {
+    const seferId = Number(req.query.sefer_id);
+    const sefer = aktifSeferler.get(seferId);
+    if (!sefer) {
+        return res.status(400).json({ hata: 'Gecersiz veya aktif olmayan sefer_id' });
+    }
     try {
-        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${gemiKonumu.enlem}&lon=${gemiKonumu.boylam}&appid=${HAVA_DURUMU_API_ANAHTARI}&units=metric&lang=tr`;
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${sefer.konum.enlem}&lon=${sefer.konum.boylam}&appid=${HAVA_DURUMU_API_ANAHTARI}&units=metric&lang=tr`;
         const yanit = await fetch(url);
         const veri = await yanit.json();
 
