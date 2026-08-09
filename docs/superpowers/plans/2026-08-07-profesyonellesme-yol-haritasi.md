@@ -16,7 +16,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 |---|---|---|---|---|
 | 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) | ✅ Tamamlandı |
 | 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
-| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | - |
+| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | 🟡 Kod tamamlandı, manuel doğrulama bekliyor |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | - |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
@@ -106,4 +106,8 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 **Bekleyen manuel adım:** Personel app'in gerçek Expo/cihaz ortamında login akışı ve rol bazlı yetkilendirme UX'i (planın Task 10, Step 2-3) bu ortamda otomatik doğrulanamadı — bir insan operatör tarafından Expo ile manuel test edilmeli.
 
-Sıradaki: **Faz 2** (çoklu gemi/hat veri modeli). `superpowers:writing-plans` ile adım adım (test-driven, dosya bazlı) bir uygulama planı çıkarılacak.
+**Faz 2 kod tarafı tamamlandı, "tamamlandı" olarak işaretlenmedi** (bkz. `2026-08-07-faz2-coklu-gemi-veri-modeli.md`, `main`'e merge edildi, 98/98 test yeşil). DB şeması (`gemiler`/`hatlar`/`rota_noktalari`/`seferler`), repo katmanları, sefer yaşam döngüsü REST uçları, socket.io sefer-odaları ve her iki app'in sefer seçim/başlatma/bitirme ekranları eklendi. Final whole-branch review'da bulunan 2 Critical bulgu (personel app çıkış sonrası kalıcı yükleniyor ekranı; sunucu yeniden başlarsa bir geminin kalıcı olarak kilitlenmesi) ve birkaç Important bulgu düzeltildi; ayrıca web'de manuel gösterim sırasında bulunan üçüncü bir "kalıcı yükleniyor" varyantı (token hiç yoksa) da ayrıca düzeltildi.
+
+**Bekleyen manuel adım:** `db/gemiler_hatlar_seferler.sql` ve seed dosyası gerçek veritabanına henüz uygulanmadı (bu ortamda `psql`/`DATABASE_URL` yok); sefer başlat/seç/bitir akışı gerçek DB + Expo cihaz/emülatör ortamında uçtan uca doğrulanmadı. Bu ikisi tamamlanmadan Faz 2 "✅ Tamamlandı" olarak işaretlenmeyecek.
+
+Sıradaki: **Faz 3** (gerçek GPS entegrasyonu). Donanım erişimine göre iki seçenek var (bkz. yukarısı) — hangisiyle devam edileceği netleşmeden `superpowers:writing-plans` ile plan çıkarılamaz.
