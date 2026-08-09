@@ -181,6 +181,141 @@ describe('POST /token/yenile', () => {
     });
 });
 
+describe('POST /sefer/baslat', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        aktifSeferler.clear();
+    });
+
+    it('personel rolundeki gecerli token ile 403 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 1, hat_id: 1 });
+        expect(yanit.status).toBe(403);
+    });
+
+    it('gecersiz gemi_id ile 400 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [] }); // gemiGetir bos
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 999, hat_id: 1 });
+        expect(yanit.status).toBe(400);
+    });
+
+    it('gecersiz hat_id ile 400 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query')
+            .mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova Feribotu 1' }] }) // gemiGetir
+            .mockResolvedValueOnce({ rows: [] }); // rotaNoktalariGetir bos
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 1, hat_id: 999 });
+        expect(yanit.status).toBe(400);
+    });
+
+    it('gemi zaten aktif seferdeyse 409 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query')
+            .mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova Feribotu 1' }] }) // gemiGetir
+            .mockResolvedValueOnce({ rows: [{ ad: 'Yalova', enlem: 40.65, boylam: 29.26 }, { ad: 'Istanbul', enlem: 41.01, boylam: 29.02 }] }) // rotaNoktalariGetir
+            .mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' })); // seferOlustur
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 1, hat_id: 1 });
+        expect(yanit.status).toBe(409);
+    });
+
+    it('gecerli istekle sefer baslar, sefer_id doner ve aktifSeferler e eklenir', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query')
+            .mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova Feribotu 1' }] }) // gemiGetir
+            .mockResolvedValueOnce({ rows: [{ ad: 'Yalova', enlem: 40.65, boylam: 29.26 }, { ad: 'Istanbul', enlem: 41.01, boylam: 29.02 }] }) // rotaNoktalariGetir
+            .mockResolvedValueOnce({ rows: [{ id: 42, gemi_id: 1, hat_id: 1, baslangic_zamani: '2026-08-07T10:00:00.000Z' }] }); // seferOlustur
+
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 1, hat_id: 1 });
+
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual({ sefer_id: 42 });
+        expect(aktifSeferler.has(42)).toBe(true);
+        expect(aktifSeferler.get(42).gemiAdi).toBe('Yalova Feribotu 1');
+    });
+});
+
+describe('POST /sefer/bitir', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        aktifSeferler.clear();
+    });
+
+    it('aktif olmayan sefer_id ile 404 doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const yanit = await request(app)
+            .post('/sefer/bitir')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 999 });
+        expect(yanit.status).toBe(404);
+    });
+
+    it('aktif sefer basariyla bitirilir ve aktifSeferler den silinir', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        aktifSeferler.set(7, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rowCount: 1 });
+
+        const yanit = await request(app)
+            .post('/sefer/bitir')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 7 });
+
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual({ tamam: true });
+        expect(aktifSeferler.has(7)).toBe(false);
+    });
+});
+
+describe('GET /seferler/aktif', () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('auth gerektirmez, aktif seferleri doner', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({
+            rows: [{ sefer_id: 1, gemi_adi: 'Gemi A', hat_adi: 'Hat 1', baslangic_zamani: '2026-08-07T10:00:00.000Z' }]
+        });
+        const yanit = await request(app).get('/seferler/aktif');
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual([{ sefer_id: 1, gemi_adi: 'Gemi A', hat_adi: 'Hat 1', baslangic_zamani: '2026-08-07T10:00:00.000Z' }]);
+    });
+});
+
+describe('GET /gemiler', () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('auth gerektirmez, gemi listesini doner', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova Feribotu 1' }] });
+        const yanit = await request(app).get('/gemiler');
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual([{ id: 1, ad: 'Yalova Feribotu 1' }]);
+    });
+});
+
+describe('GET /hatlar', () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('auth gerektirmez, hat listesini doner', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova - Istanbul' }] });
+        const yanit = await request(app).get('/hatlar');
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual([{ id: 1, ad: 'Yalova - Istanbul' }]);
+    });
+});
+
 describe('POST /reset-gemi', () => {
     it('Authorization basligi yoksa 401 doner', async () => {
         const yanit = await request(app).post('/reset-gemi').send({});

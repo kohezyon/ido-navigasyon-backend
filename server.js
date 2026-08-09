@@ -10,6 +10,9 @@ const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
 const { sifreDogrula, SAHTE_SIFRE_HASH } = require('./sifreYardimcisi.js');
 const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
 const { kullaniciAdiylaBul, idIleBul } = require('./personelRepo.js');
+const { tumGemileriListele, gemiGetir } = require('./gemilerRepo.js');
+const { tumHatlariListele, rotaNoktalariGetir } = require('./hatlarRepo.js');
+const { seferOlustur, seferBitir, seferlerAktifListele } = require('./seferRepo.js');
 const { jwtDogrulaMiddleware } = require('./restAuth.js');
 
 const app = express();
@@ -246,6 +249,80 @@ io.on('connection', (soket) => {
         console.log('Bir cihaz ayrildi. ID:', soket.id);
     });
 });
+app.post('/sefer/baslat', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), async (req, res) => {
+    const gemiId = Number(req.body?.gemi_id);
+    const hatId = Number(req.body?.hat_id);
+    if (!Number.isInteger(gemiId) || !Number.isInteger(hatId)) {
+        return res.status(400).json({ hata: 'Gecersiz istek' });
+    }
+
+    try {
+        const gemi = await gemiGetir(havuz, gemiId);
+        if (!gemi) {
+            return res.status(400).json({ hata: 'Gecersiz gemi_id' });
+        }
+
+        const rotaNoktalariSatirlari = await rotaNoktalariGetir(havuz, hatId);
+        if (rotaNoktalariSatirlari.length === 0) {
+            return res.status(400).json({ hata: 'Gecersiz hat_id' });
+        }
+
+        const sefer = await seferOlustur(havuz, { gemiId, hatId, baslatanPersonelId: req.kullanici.id });
+        const seferState = seferStateOlustur(rotaNoktalariSatirlari);
+        aktifSeferler.set(sefer.id, { ...seferState, gemiId, hatId, gemiAdi: gemi.ad });
+
+        res.json({ sefer_id: sefer.id });
+    } catch (hata) {
+        if (hata.code === '23505') {
+            return res.status(409).json({ hata: 'Bu gemi zaten aktif bir seferde' });
+        }
+        sunucuHatasiYanitla(res, hata, 'Sefer baslatilamadi');
+    }
+});
+
+app.post('/sefer/bitir', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), async (req, res) => {
+    const seferId = Number(req.body?.sefer_id);
+    if (!Number.isInteger(seferId) || !aktifSeferler.has(seferId)) {
+        return res.status(404).json({ hata: 'Aktif sefer bulunamadi' });
+    }
+
+    try {
+        await seferBitir(havuz, seferId);
+        aktifSeferler.delete(seferId);
+        io.to('sefer:' + seferId).emit('sefer-bitti', {});
+        res.json({ tamam: true });
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Sefer bitirilemedi');
+    }
+});
+
+app.get('/seferler/aktif', async (req, res) => {
+    try {
+        const seferler = await seferlerAktifListele(havuz);
+        res.json(seferler);
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Aktif seferler alinamadi');
+    }
+});
+
+app.get('/gemiler', async (req, res) => {
+    try {
+        const gemiler = await tumGemileriListele(havuz);
+        res.json(gemiler);
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Gemiler alinamadi');
+    }
+});
+
+app.get('/hatlar', async (req, res) => {
+    try {
+        const hatlar = await tumHatlariListele(havuz);
+        res.json(hatlar);
+    } catch (hata) {
+        sunucuHatasiYanitla(res, hata, 'Hatlar alinamadi');
+    }
+});
+
 app.post('/reset-gemi', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), (req, res) => {
     res.json({ tamam: true });
 });
