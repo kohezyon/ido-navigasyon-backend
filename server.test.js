@@ -13,6 +13,34 @@ const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
 const { erisimTokeniOlustur } = require('./jwtYardimcisi.js');
 const { tokenDogrula } = require('./jwtYardimcisi.js');
 
+// Gercek socket.io-client baglantisi kuran describe bloklari (asagida) paylasilan
+// `sunucu` (http.Server + tek Socket.io `io` ornegi) uzerinde calisir. Eskiden her
+// blok kendi beforeAll/afterAll'inda sunucu.listen(0)/sunucu.close() cagiriyordu;
+// bunu tum dosya icin TEK bir listen/close yasam dongusune indirgiyoruz (gereksiz
+// yeniden baglanti/kapanma dongulerini azaltir).
+//
+// Asil flake kaynagi olcumle dogrulandi: `npm test` tum test dosyalarini paralel
+// (fork) surecler halinde calistirdiginda ara sira CPU cekismesi olusuyor; varsayilan
+// engine.io tasima sirasi ("polling" ile baslayip sonra "websocket"e yukseltme) bu
+// cekisme altinda 5000ms'lik vitest test zaman asimini asabiliyor (gozlemlenen:
+// "yolcu-sayisi-guncelle yetkilendirmesi > ... yolcu-sayisi-yayin yapabilir" testi
+// ~3 calistirmada 1'inde "Test timed out in 5000ms" ile basarisiz oluyordu, hatta
+// --no-file-parallelism ile bile). Iki tamamlayici onlem aliyoruz: (1) test
+// istemcilerini doner `transports: ['websocket']` ile sabitleyerek polling/yukseltme
+// asamasini tamamen atliyoruz (bkz. asagidaki yeniSoketBaglantisi()), (2) en cok ag
+// gidis-donusu iceren teste (5 round-trip) makul bir zaman asimi payi tanimliyoruz.
+// Bu ikisi flake oranini olculebilir sekilde dusurdu (bkz. final-review-fix-report.md).
+let sunucuPortu;
+
+beforeAll(async () => {
+    await new Promise((resolve) => sunucu.listen(0, resolve));
+    sunucuPortu = sunucu.address().port;
+});
+
+function yeniSoketBaglantisi(secenekler) {
+    return ioClient(`http://localhost:${sunucuPortu}`, { transports: ['websocket'], ...secenekler });
+}
+
 describe('JWT_GIZLI_ANAHTARI dogrulamasi', () => {
     it('JWT_GIZLI_ANAHTARI tanimli degilse sunucu modulu yuklenirken hata firlatir', () => {
         const { spawnSync } = require('child_process');
@@ -218,6 +246,19 @@ describe('POST /sefer/baslat', () => {
         expect(yanit.status).toBe(400);
     });
 
+    it('tek rota noktali hat ile 400 doner (en az baslangic ve hedef gerekir)', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query')
+            .mockResolvedValueOnce({ rows: [{ id: 1, ad: 'Yalova Feribotu 1' }] }) // gemiGetir
+            .mockResolvedValueOnce({ rows: [{ ad: 'Yalova', enlem: 40.65, boylam: 29.26 }] }); // rotaNoktalariGetir tek nokta
+        const yanit = await request(app)
+            .post('/sefer/baslat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ gemi_id: 1, hat_id: 1 });
+        expect(yanit.status).toBe(400);
+        expect(yanit.body).toEqual({ hata: 'Gecersiz hat_id' });
+    });
+
     it('gemi zaten aktif seferdeyse 409 doner', async () => {
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         vi.spyOn(havuz, 'query')
@@ -256,13 +297,26 @@ describe('POST /sefer/bitir', () => {
         aktifSeferler.clear();
     });
 
-    it('aktif olmayan sefer_id ile 404 doner', async () => {
+    it('gecersiz sefer_id (sayi degil) ile 404 doner', async () => {
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         const yanit = await request(app)
             .post('/sefer/bitir')
             .set('Authorization', `Bearer ${token}`)
-            .send({ sefer_id: 999 });
+            .send({ sefer_id: 'sayi-degil' });
         expect(yanit.status).toBe(404);
+    });
+
+    it('DB de hic var olmayan sefer_id ile 404 doner (UPDATE 0 satir etkiler)', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rowCount: 0 });
+
+        const yanit = await request(app)
+            .post('/sefer/bitir')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 999 });
+
+        expect(yanit.status).toBe(404);
+        expect(yanit.body).toEqual({ hata: 'Aktif sefer bulunamadi' });
     });
 
     it('aktif sefer basariyla bitirilir ve aktifSeferler den silinir', async () => {
@@ -278,6 +332,27 @@ describe('POST /sefer/bitir', () => {
         expect(yanit.status).toBe(200);
         expect(yanit.body).toEqual({ tamam: true });
         expect(aktifSeferler.has(7)).toBe(false);
+    });
+
+    it('DB de aktif ama aktifSeferler de olmayan sefer basariyla bitirilir (sunucu yeniden baslatma senaryosu)', async () => {
+        // aktifSeferler bos: sunucu yeniden baslamis gibi. DB'de bitis_zamani IS NULL
+        // olan bir sefer hala mevcut. /sefer/bitir bellek durumuna degil DB durumuna
+        // gore calismali; bu senaryoda 404 degil basari donmeli.
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        expect(aktifSeferler.has(13)).toBe(false);
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rowCount: 1 });
+
+        const yanit = await request(app)
+            .post('/sefer/bitir')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 13 });
+
+        expect(yanit.status).toBe(200);
+        expect(yanit.body).toEqual({ tamam: true });
+        expect(havuz.query).toHaveBeenCalledWith(
+            'UPDATE seferler SET bitis_zamani = now() WHERE id = $1',
+            [13]
+        );
     });
 });
 
@@ -501,23 +576,12 @@ describe('bozuk JSON govdesi', () => {
 });
 
 describe('acil-durum-baslat socket yetkilendirmesi', () => {
-    let sunucuPortu;
-
-    beforeAll(async () => {
-        await new Promise((resolve) => sunucu.listen(0, resolve));
-        sunucuPortu = sunucu.address().port;
-    });
-
-    afterAll(async () => {
-        await new Promise((resolve) => sunucu.close(resolve));
-    });
-
     afterEach(() => {
         aktifSeferler.clear();
     });
 
     it('token gonderilmezse baglanti kurulur (yolcu app icin anonim/dinleyici erisim)', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderen = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderen.on('connect', resolve));
         expect(gonderen.connected).toBe(true);
         gonderen.disconnect();
@@ -528,7 +592,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
             { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
             process.env.JWT_GIZLI_ANAHTARI
         );
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token: yenileme } });
+        const gonderen = yeniSoketBaglantisi({ auth: { token: yenileme } });
         const hata = await new Promise((resolve) => gonderen.on('connect_error', resolve));
         expect(hata.message).toBe('Yetkisiz');
         gonderen.disconnect();
@@ -547,7 +611,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
             { expiresIn: '1s' }
         );
 
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token: kisaOmurluToken } });
+        const gonderen = yeniSoketBaglantisi({ auth: { token: kisaOmurluToken } });
         await new Promise((resolve) => gonderen.on('connect', resolve));
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
@@ -562,7 +626,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     }, 10000);
 
     it('gecersiz/aktif olmayan sefer_id ile sefer-sec basarisiz doner', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderen = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const yanit = await new Promise((resolve) => {
@@ -575,7 +639,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
 
     it('sefer secilmeden acil-durum-baslat gonderilirse "Sefer secilmedi" doner', async () => {
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const yanit = await new Promise((resolve) => {
@@ -589,7 +653,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     it('personel rolundeki token ile sefer secilir ama acil-durum-baslat Yetkisiz rol doner', async () => {
         aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
         await new Promise((resolve) => gonderen.on('connect', resolve));
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
@@ -604,20 +668,20 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     it('sefer-sec basarili oldugunda mevcut acil durum ve yolcu sayisi durumunu doner', async () => {
         aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
 
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderen = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const ilkYanit = await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
         expect(ilkYanit).toEqual({ tamam: true, acil_durum_aktif: false, yolcu_sayisi: 0 });
 
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const kaptan = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const kaptan = yeniSoketBaglantisi({ auth: { token } });
         await new Promise((resolve) => kaptan.on('connect', resolve));
         await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
         await new Promise((resolve) => kaptan.emit('acil-durum-baslat', {}, resolve));
         await new Promise((resolve) => kaptan.emit('yolcu-sayisi-guncelle', { sayi: 4 }, resolve));
 
-        const gonderenIki = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderenIki = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderenIki.on('connect', resolve));
         const ikinciYanit = await new Promise((resolve) => gonderenIki.emit('sefer-sec', { sefer_id: 1 }, resolve));
         expect(ikinciYanit).toEqual({ tamam: true, acil_durum_aktif: true, yolcu_sayisi: 4 });
@@ -629,22 +693,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
 
 });
 
-// Bu test kendi describe blogunda: ayni describe icinde art arda cok sayida gercek
-// socket.io-client baglantisi acmak (paylasilan `sunucu` ornegi uzerinde) bu ortamda
-// ara sira flaky davranisa (baglanti/olay zaman asimi) yol acabiliyor. Kendi
-// beforeAll/afterAll sunucu yasam dongusuyle izole ederek sizintiyi azaltiyoruz.
 describe('sefer odasi izolasyonu', () => {
-    let sunucuPortu;
-
-    beforeAll(async () => {
-        await new Promise((resolve) => sunucu.listen(0, resolve));
-        sunucuPortu = sunucu.address().port;
-    });
-
-    afterAll(async () => {
-        await new Promise((resolve) => sunucu.close(resolve));
-    });
-
     afterEach(() => {
         aktifSeferler.clear();
     });
@@ -654,9 +703,9 @@ describe('sefer odasi izolasyonu', () => {
         aktifSeferler.set(2, { ...seferStateOlustur([{ ad: 'B1', enlem: 10, boylam: 10 }, { ad: 'B2', enlem: 11, boylam: 11 }]), gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' });
 
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const kaptanA = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        const dinleyiciA = ioClient(`http://localhost:${sunucuPortu}`);
-        const dinleyiciB = ioClient(`http://localhost:${sunucuPortu}`);
+        const kaptanA = yeniSoketBaglantisi({ auth: { token } });
+        const dinleyiciA = yeniSoketBaglantisi();
+        const dinleyiciB = yeniSoketBaglantisi();
 
         await Promise.all([kaptanA, dinleyiciA, dinleyiciB].map((s) => new Promise((r) => s.on('connect', r))));
         await Promise.all([
@@ -685,23 +734,12 @@ describe('sefer odasi izolasyonu', () => {
 });
 
 describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
-    let sunucuPortu;
-
-    beforeAll(async () => {
-        await new Promise((resolve) => sunucu.listen(0, resolve));
-        sunucuPortu = sunucu.address().port;
-    });
-
-    afterAll(async () => {
-        await new Promise((resolve) => sunucu.close(resolve));
-    });
-
     afterEach(() => {
         aktifSeferler.clear();
     });
 
     it('anonim (tokensiz) baglanti yolcu-sayisi-guncelle gonderirse Yetkisiz doner', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderen = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const yanit = await new Promise((resolve) => {
@@ -712,12 +750,17 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
         gonderen.disconnect();
     });
 
+    // Bu test 2 gercek soket baglantisi + 4 ack + 1 yayin (5 ag gidis-donusu) icerir.
+    // Varsayilan 5000ms vitest zaman asimi, tum test dosyalari paralel calisirken
+    // ara sira olusan CPU cekismesi altinda bu kadar gidis-donus icin dar kaliyordu;
+    // paylasilan yeniSoketBaglantisi() zaten transports:['websocket'] ile polling
+    // yukseltme asamasini atlıyor, burada ayrica makul bir pay birakiyoruz.
     it('gecerli token ile sefer secilmis herhangi bir rol yolcu-sayisi-yayin yapabilir, sadece o sefer odasina', async () => {
         aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
 
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
+        const dinleyici = yeniSoketBaglantisi();
         await new Promise((resolve) => gonderen.on('connect', resolve));
         await new Promise((resolve) => dinleyici.on('connect', resolve));
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
@@ -730,9 +773,10 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
         expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Gemi A' });
         gonderen.disconnect();
         dinleyici.disconnect();
-    });
+    }, 10000);
 });
 
 afterAll(async () => {
+    await new Promise((resolve) => sunucu.close(resolve));
     await havuz.end();
 });

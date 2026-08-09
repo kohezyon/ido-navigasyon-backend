@@ -295,7 +295,10 @@ app.post('/sefer/baslat', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI,
         }
 
         const rotaNoktalariSatirlari = await rotaNoktalariGetir(havuz, hatId);
-        if (rotaNoktalariSatirlari.length === 0) {
+        if (rotaNoktalariSatirlari.length < 2) {
+            // Bir hattin seyredilebilir olmasi icin en az bir baslangic ve bir hedef
+            // noktasi gerekir; aksi halde seferStateOlustur'un hedefIndex:1 varsayimi
+            // rotaNoktalari[1]'i undefined birakir ve sahteGpsGuncelle patlar.
             return res.status(400).json({ hata: 'Gecersiz hat_id' });
         }
 
@@ -314,14 +317,23 @@ app.post('/sefer/baslat', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI,
 
 app.post('/sefer/bitir', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), async (req, res) => {
     const seferId = Number(req.body?.sefer_id);
-    if (!Number.isInteger(seferId) || !aktifSeferler.has(seferId)) {
+    if (!Number.isInteger(seferId)) {
         return res.status(404).json({ hata: 'Aktif sefer bulunamadi' });
     }
 
     try {
-        await seferBitir(havuz, seferId);
-        aktifSeferler.delete(seferId);
-        io.to('sefer:' + seferId).emit('sefer-bitti', {});
+        // aktifSeferler bellek-ici bir onbellektir (sunucu yeniden baslarsa bosalir);
+        // DB guncellemesi sadece bellekte kayitli seferlere gore degil, DB'nin kendi
+        // durumuna gore yapilmali. UPDATE'in etkiledigi satir sayisi, seferin DB'de
+        // gercekten var olup olmadigini (dogru "404" kaynagini) belirler.
+        const etkilenenSatir = await seferBitir(havuz, seferId);
+        if (etkilenenSatir === 0) {
+            return res.status(404).json({ hata: 'Aktif sefer bulunamadi' });
+        }
+        if (aktifSeferler.has(seferId)) {
+            aktifSeferler.delete(seferId);
+            io.to('sefer:' + seferId).emit('sefer-bitti', {});
+        }
         res.json({ tamam: true });
     } catch (hata) {
         sunucuHatasiYanitla(res, hata, 'Sefer bitirilemedi');
