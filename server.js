@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware } = require('./cors.js');
-const { sayiGecerliMi } = require('./validation.js');
+const { sayiGecerliMi, konumGecerliMi } = require('./validation.js');
 const { sifreDogrula, SAHTE_SIFRE_HASH } = require('./sifreYardimcisi.js');
 const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
 const { kullaniciAdiylaBul, idIleBul } = require('./personelRepo.js');
@@ -246,6 +246,38 @@ io.on('connection', (soket) => {
         console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, seferId: soket.data.aktifSeferId });
         io.to('sefer:' + soket.data.aktifSeferId).emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: sefer.gemiAdi });
         sefer.yolcuSayisi = bilgi.sayi;
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
+    });
+
+    soket.on('konum-guncelle', (bilgi, geriBildir) => {
+        if (!soket.data.kullanici) {
+            console.log('KIMLIKSIZ baglanti ile konum-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
+            return;
+        }
+        if (oturumSuresiDolduMu(soket)) {
+            console.log('SURESI DOLMUS TOKEN ile konum-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Oturum suresi doldu' });
+            return;
+        }
+        if (!['kaptan', 'admin'].includes(soket.data.kullanici.rol)) {
+            console.log('YETKISIZ ROL ile konum-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
+            return;
+        }
+        const sefer = aktifSeferler.get(soket.data.aktifSeferId);
+        if (!sefer) {
+            console.log('SEFER SECILMEMIS ile konum-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Sefer secilmedi' });
+            return;
+        }
+        if (!konumGecerliMi(bilgi?.enlem, bilgi?.boylam)) {
+            console.log('GECERSIZ konum ile konum-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz konum' });
+            return;
+        }
+        sefer.konum = { enlem: bilgi.enlem, boylam: bilgi.boylam };
+        konumKontrolVeYayinla(soket.data.aktifSeferId, sefer, bilgi.hiz);
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 

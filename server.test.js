@@ -834,6 +834,136 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
     }, 10000);
 });
 
+describe('konum-guncelle yetkilendirmesi', () => {
+    afterEach(() => {
+        aktifSeferler.clear();
+    });
+
+    it('anonim (tokensiz) baglanti konum-guncelle gonderirse Yetkisiz doner', async () => {
+        const gonderen = yeniSoketBaglantisi();
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('konum-guncelle', { enlem: 40.65, boylam: 29.26 }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
+        gonderen.disconnect();
+    });
+
+    it('personel rolundeki token ile sefer secilmis olsa da konum-guncelle Yetkisiz rol doner', async () => {
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz rol' });
+        gonderen.disconnect();
+    });
+
+    it('kaptan rolunde ama sefer secilmeden konum-guncelle gonderilirse Sefer secilmedi doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Sefer secilmedi' });
+        gonderen.disconnect();
+    });
+
+    it('gecersiz konum (araligin disinda) ile Gecersiz konum doner, sefer.konum degismez', async () => {
+        const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        aktifSeferler.set(1, sefer);
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const gonderen = yeniSoketBaglantisi({ auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const oncekiKonum = { ...sefer.konum };
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('konum-guncelle', { enlem: 999, boylam: 0 }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Gecersiz konum' });
+        expect(sefer.konum).toEqual(oncekiKonum);
+        gonderen.disconnect();
+    });
+
+    it('gecerli konum kabul edilir, sefer.konum guncellenir ve odaya gemi-konum-guncelleme yayinlanir', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+        const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        aktifSeferler.set(1, sefer);
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const kaptan = yeniSoketBaglantisi({ auth: { token } });
+        const dinleyici = yeniSoketBaglantisi();
+        await new Promise((resolve) => kaptan.on('connect', resolve));
+        await new Promise((resolve) => dinleyici.on('connect', resolve));
+        await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const yayinPromise = new Promise((resolve) => dinleyici.on('gemi-konum-guncelleme', resolve));
+        const yanit = await new Promise((resolve) => {
+            kaptan.emit('konum-guncelle', { enlem: 0.5, boylam: 0, hiz: 5 }, resolve);
+        });
+        const yayin = await yayinPromise;
+
+        expect(yanit).toEqual({ tamam: true });
+        expect(sefer.konum).toEqual({ enlem: 0.5, boylam: 0 });
+        expect(yayin.enlem).toBe(0.5);
+        expect(yayin.boylam).toBe(0);
+        // hedefe (1,0) kalan mesafe ~55.5km; hiz=5 m/s ile hedefe_kalan_dakika = mesafe/5/60.
+        expect(yayin.hedefe_kalan_dakika).toBeGreaterThan(0);
+
+        kaptan.disconnect();
+        dinleyici.disconnect();
+    }, 10000);
+
+    it('hiz gonderilmezse VARSAYILAN_HIZ_METRE_SANIYE ile hesaplanir (hiz gonderilenden daha yuksek ETA)', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+        const seferHizli = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        const seferYavas = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' };
+        aktifSeferler.set(1, seferHizli);
+        aktifSeferler.set(2, seferYavas);
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+
+        const kaptanHizli = yeniSoketBaglantisi({ auth: { token } });
+        const dinleyiciHizli = yeniSoketBaglantisi();
+        await new Promise((resolve) => kaptanHizli.on('connect', resolve));
+        await new Promise((resolve) => dinleyiciHizli.on('connect', resolve));
+        await new Promise((resolve) => kaptanHizli.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => dinleyiciHizli.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        const yayinHizliPromise = new Promise((resolve) => dinleyiciHizli.on('gemi-konum-guncelleme', resolve));
+        await new Promise((resolve) => kaptanHizli.emit('konum-guncelle', { enlem: 0.5, boylam: 0, hiz: 20 }, resolve));
+        const yayinHizli = await yayinHizliPromise;
+
+        const kaptanYavas = yeniSoketBaglantisi({ auth: { token } });
+        const dinleyiciYavas = yeniSoketBaglantisi();
+        await new Promise((resolve) => kaptanYavas.on('connect', resolve));
+        await new Promise((resolve) => dinleyiciYavas.on('connect', resolve));
+        await new Promise((resolve) => kaptanYavas.emit('sefer-sec', { sefer_id: 2 }, resolve));
+        await new Promise((resolve) => dinleyiciYavas.emit('sefer-sec', { sefer_id: 2 }, resolve));
+        const yayinYavasPromise = new Promise((resolve) => dinleyiciYavas.on('gemi-konum-guncelleme', resolve));
+        await new Promise((resolve) => kaptanYavas.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve)); // hiz yok -> VARSAYILAN_HIZ_METRE_SANIYE=7
+        const yayinYavas = await yayinYavasPromise;
+
+        // Ayni mesafe, farkli hiz: hiz=20 olan daha kisa ETA, varsayilan hiz=7 olan daha uzun ETA vermeli.
+        expect(yayinHizli.hedefe_kalan_dakika).toBeLessThan(yayinYavas.hedefe_kalan_dakika);
+
+        kaptanHizli.disconnect();
+        dinleyiciHizli.disconnect();
+        kaptanYavas.disconnect();
+        dinleyiciYavas.disconnect();
+    }, 10000);
+});
+
 afterAll(async () => {
     await new Promise((resolve) => sunucu.close(resolve));
     await havuz.end();
