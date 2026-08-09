@@ -115,7 +115,12 @@ export default function App() {
       soket.emit('sefer-sec', { sefer_id: seciliSeferId }, (yanit) => {
         if (!yanit || !yanit.tamam) {
           Alert.alert('Hata', 'Sefer secilemedi. Lutfen tekrar deneyin.');
+          setSeciliSeferId(null);
+          setEkran('sefer-sec');
+          return;
         }
+        setAcilDurumAktif(!!yanit.acil_durum_aktif);
+        setYolcuSayisi(yanit.yolcu_sayisi || 0);
       });
     });
 
