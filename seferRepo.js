@@ -7,7 +7,10 @@ async function seferOlustur(havuz, { gemiId, hatId, baslatanPersonelId }) {
 }
 
 async function seferBitir(havuz, seferId) {
-    const sonuc = await havuz.query('UPDATE seferler SET bitis_zamani = now() WHERE id = $1', [seferId]);
+    const sonuc = await havuz.query(
+        'UPDATE seferler SET bitis_zamani = now() WHERE id = $1 AND bitis_zamani IS NULL',
+        [seferId]
+    );
     return sonuc.rowCount;
 }
 

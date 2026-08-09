@@ -350,9 +350,22 @@ describe('POST /sefer/bitir', () => {
         expect(yanit.status).toBe(200);
         expect(yanit.body).toEqual({ tamam: true });
         expect(havuz.query).toHaveBeenCalledWith(
-            'UPDATE seferler SET bitis_zamani = now() WHERE id = $1',
+            'UPDATE seferler SET bitis_zamani = now() WHERE id = $1 AND bitis_zamani IS NULL',
             [13]
         );
+    });
+
+    it('zaten bitmis bir seferi tekrar bitirmeye calisinca 404 doner, bitis_zamani tekrar guncellenmez', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        vi.spyOn(havuz, 'query').mockResolvedValueOnce({ rowCount: 0 });
+
+        const yanit = await request(app)
+            .post('/sefer/bitir')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sefer_id: 21 });
+
+        expect(yanit.status).toBe(404);
+        expect(yanit.body).toEqual({ hata: 'Aktif sefer bulunamadi' });
     });
 });
 

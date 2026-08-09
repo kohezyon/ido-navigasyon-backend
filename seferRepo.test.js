@@ -26,14 +26,22 @@ describe('seferOlustur', () => {
 });
 
 describe('seferBitir', () => {
-    it('dogru SQL ve parametre ile bitis_zamanini gunceller', async () => {
+    it('dogru SQL ve parametre ile bitis_zamanini gunceller, halihazirda bitmemis seferlerle sinirlar', async () => {
         const sahteHavuz = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) };
-        await seferBitir(sahteHavuz, 42);
+        const sonuc = await seferBitir(sahteHavuz, 42);
 
         expect(sahteHavuz.query).toHaveBeenCalledWith(
-            'UPDATE seferler SET bitis_zamani = now() WHERE id = $1',
+            'UPDATE seferler SET bitis_zamani = now() WHERE id = $1 AND bitis_zamani IS NULL',
             [42]
         );
+        expect(sonuc).toBe(1);
+    });
+
+    it('sefer zaten bitmisse (veya yoksa) rowCount 0 doner, bitis_zamani tekrar guncellenmez', async () => {
+        const sahteHavuz = { query: vi.fn().mockResolvedValue({ rowCount: 0 }) };
+        const sonuc = await seferBitir(sahteHavuz, 42);
+
+        expect(sonuc).toBe(0);
     });
 });
 
