@@ -61,15 +61,32 @@ function seferStateOlustur(rotaNoktalariSatirlari) {
     };
 }
 
+// Gercek GPS ile ara rota noktalari (orn. deniz ortasindaki batik isareti, bir ada)
+// cogu zaman yuzlerce metre - kilometrelerce uzaktan geciliyor; sadece 50m'lik varis
+// cemberine bakmak hedefIndex'i sonsuza kadar ayni noktada takili birakirdi. Bu yuzden
+// "yetisme" mantigi kullaniyoruz: gemi mevcut hedeften cok, bir SONRAKI hedefe daha
+// yakinsa o nokta gecilmis sayilir ve hedefIndex ilerler. Dongu sayesinde tek bir GPS
+// guncellemesi (orn. baglanti kopmasindan sonra) birden fazla gecilmis noktayi yakalar.
+// 50m'lik cember yalnizca son noktaya varis (varis-bildirimi) tetigi olarak kaliyor.
 function hedefIlerlet(sefer, seferId) {
-    const hedefNokta = sefer.rotaNoktalari[sefer.hedefIndex];
-    const hedefeMesafe = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, hedefNokta.enlem, hedefNokta.boylam);
+    while (sefer.hedefIndex < sefer.rotaNoktalari.length - 1) {
+        const hedefNokta = sefer.rotaNoktalari[sefer.hedefIndex];
+        const sonrakiNokta = sefer.rotaNoktalari[sefer.hedefIndex + 1];
+        const hedefeMesafe = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, hedefNokta.enlem, hedefNokta.boylam);
+        const sonrakineMesafe = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, sonrakiNokta.enlem, sonrakiNokta.boylam);
 
-    if (hedefeMesafe <= VARIS_ESIGI_METRE) {
-        if (sefer.hedefIndex < sefer.rotaNoktalari.length - 1) {
+        if (hedefeMesafe <= VARIS_ESIGI_METRE || sonrakineMesafe < hedefeMesafe) {
             sefer.hedefIndex++;
             console.log('Sefer ' + seferId + ' yeni hedefe geciyor:', sefer.rotaNoktalari[sefer.hedefIndex]);
-        } else if (!sefer.varisBildirimiGonderildi) {
+        } else {
+            break;
+        }
+    }
+
+    if (sefer.hedefIndex === sefer.rotaNoktalari.length - 1 && !sefer.varisBildirimiGonderildi) {
+        const sonNokta = sefer.rotaNoktalari[sefer.hedefIndex];
+        const sonaMesafe = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, sonNokta.enlem, sonNokta.boylam);
+        if (sonaMesafe <= VARIS_ESIGI_METRE) {
             sefer.varisBildirimiGonderildi = true;
             io.to('sefer:' + seferId).emit('varis-bildirimi', {
                 mesaj: sefer.rotaAdlari[sefer.rotaAdlari.length - 1] + '\'a hos geldiniz! Yolculugunuz tamamlandi.'
@@ -95,10 +112,12 @@ function sunucuHatasiYanitla(res, hata, genelMesaj) {
 }
 
 async function konumKontrolVeYayinla(seferId, sefer, hizMetreSaniye) {
-    hedefIlerlet(sefer, seferId);
-    const hiz = hizMetreSaniye > 0 ? hizMetreSaniye : VARSAYILAN_HIZ_METRE_SANIYE;
-
     try {
+        hedefIlerlet(sefer, seferId);
+        // Tip kontrolu olmadan bir boolean/string gibi sayisal olmayan hiz degeri
+        // ">" karsilastirmasinda zorlanip anlamsiz bir ETA uretebilirdi.
+        const hiz = typeof hizMetreSaniye === 'number' && hizMetreSaniye > 0 ? hizMetreSaniye : VARSAYILAN_HIZ_METRE_SANIYE;
+
         const sonuc = await havuz.query(
             'SELECT ad, tip, enlem, boylam, tetikleme_mesafesi_metre, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari WHERE hat_id IS NULL OR hat_id = $1',
             [sefer.hatId]
@@ -277,7 +296,8 @@ io.on('connection', (soket) => {
             return;
         }
         sefer.konum = { enlem: bilgi.enlem, boylam: bilgi.boylam };
-        konumKontrolVeYayinla(soket.data.aktifSeferId, sefer, bilgi.hiz);
+        konumKontrolVeYayinla(soket.data.aktifSeferId, sefer, bilgi.hiz)
+            .catch((hata) => console.log('Konum kontrol hatasi (beklenmedik):', hata.message));
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 

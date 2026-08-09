@@ -132,6 +132,27 @@ describe('seferStateOlustur ve konumKontrolVeYayinla - coklu sefer bagimsizligi'
         expect(sefer.hedefIndex).toBe(1);
     });
 
+    it('araci nokta uzaktan gecilirse (VARIS_ESIGI_METRE disinda ama sonraki noktaya daha yakin) hedefIndex atlar', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+
+        const sefer = { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 40.65, boylam: 29.26 },
+            { ad: 'Ara-Nokta', enlem: 40.72, boylam: 29.16 },
+            { ad: 'Son', enlem: 40.8756, boylam: 29.0917 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        // Gercek bir feribotun ara noktayi genis bir yayla gectigi durum:
+        // Ara-Nokta'ya (40.72,29.16) ~15.3 km (50m esiginin cok disinda), ama
+        // Son'a (40.8756,29.0917) ~2.9 km, yani sonraki noktaya belirgin sekilde daha yakin.
+        sefer.konum = { enlem: 40.85, boylam: 29.10 };
+        aktifSeferler.set(1, sefer);
+
+        await konumKontrolVeYayinla(1, sefer, 7);
+
+        expect(sefer.hedefIndex).toBe(2);
+        // Son noktaya ~2.9 km kaldigi icin varis bildirimi henuz gonderilmemeli.
+        expect(sefer.varisBildirimiGonderildi).toBe(false);
+    });
+
     it('son hedefe ulasinca varis bildirimi gonderilir, tekrar cagrilinca tekrar gonderilmez', async () => {
         vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
 
