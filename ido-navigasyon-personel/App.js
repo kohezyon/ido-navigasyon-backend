@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, TextInput, ScrollView } from 'react-native';
 import { io } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 
@@ -18,6 +18,17 @@ export default function App() {
   const [baglantiDurumu, setBaglantiDurumu] = useState('Baglaniyor...');
   const [acilDurumAktif, setAcilDurumAktif] = useState(false);
   const [yolcuSayisi, setYolcuSayisi] = useState(0);
+
+  const [ekran, setEkran] = useState('yukleniyor'); // yukleniyor | sefer-sec | sefer-baslat | panel
+  const [aktifSeferler, setAktifSeferler] = useState([]);
+  const [gemiler, setGemiler] = useState([]);
+  const [hatlar, setHatlar] = useState([]);
+  const [seciliSeferId, setSeciliSeferId] = useState(null);
+  const [seciliGemiId, setSeciliGemiId] = useState(null);
+  const [seciliHatId, setSeciliHatId] = useState(null);
+  const [seferIslemiSuruyor, setSeferIslemiSuruyor] = useState(false);
+  const [seferHatasi, setSeferHatasi] = useState(null);
+
   const soketRef = useRef(null);
   const yenilemeTokeniRef = useRef(null);
 
@@ -48,6 +59,8 @@ export default function App() {
     await SecureStore.deleteItemAsync(YENILEME_TOKEN_DEPO_ADI);
     setErisimTokeni(null);
     setYenilemeTokeni(null);
+    setSeciliSeferId(null);
+    setEkran('yukleniyor');
   }
 
   async function erisimTokeniniYenile() {
@@ -71,11 +84,39 @@ export default function App() {
   useEffect(() => {
     if (!erisimTokeni) return;
 
+    setEkran('yukleniyor');
+    Promise.all([
+      fetch(SUNUCU_ADRESI + '/seferler/aktif').then((r) => r.json()),
+      fetch(SUNUCU_ADRESI + '/gemiler').then((r) => r.json()),
+      fetch(SUNUCU_ADRESI + '/hatlar').then((r) => r.json()),
+    ])
+      .then(([seferler, gemiListesi, hatListesi]) => {
+        setAktifSeferler(seferler);
+        setGemiler(gemiListesi);
+        setHatlar(hatListesi);
+        setEkran('sefer-sec');
+      })
+      .catch(() => {
+        setAktifSeferler([]);
+        setGemiler([]);
+        setHatlar([]);
+        setEkran('sefer-sec');
+      });
+  }, [erisimTokeni]);
+
+  useEffect(() => {
+    if (!erisimTokeni || !seciliSeferId) return;
+
     const soket = io(SUNUCU_ADRESI, { auth: { token: erisimTokeni } });
     soketRef.current = soket;
 
     soket.on('connect', () => {
       setBaglantiDurumu('Bagli');
+      soket.emit('sefer-sec', { sefer_id: seciliSeferId }, (yanit) => {
+        if (!yanit || !yanit.tamam) {
+          Alert.alert('Hata', 'Sefer secilemedi. Lutfen tekrar deneyin.');
+        }
+      });
     });
 
     soket.on('disconnect', () => {
@@ -92,10 +133,16 @@ export default function App() {
       }
     });
 
+    soket.on('sefer-bitti', () => {
+      Alert.alert('Sefer Sona Erdi', 'Bu sefer baska bir kullanici tarafindan bitirildi.');
+      setSeciliSeferId(null);
+      setEkran('sefer-sec');
+    });
+
     return () => {
       soket.disconnect();
     };
-  }, [erisimTokeni]);
+  }, [erisimTokeni, seciliSeferId]);
 
   async function girisYap() {
     const kullaniciAdi = kullaniciAdiGirisi.trim();
@@ -130,6 +177,65 @@ export default function App() {
     }
   }
 
+  async function seferBaslat() {
+    if (!seciliGemiId || !seciliHatId) {
+      setSeferHatasi('Gemi ve hat secmelisiniz.');
+      return;
+    }
+    setSeferIslemiSuruyor(true);
+    setSeferHatasi(null);
+    try {
+      const yanit = await fetch(SUNUCU_ADRESI + '/sefer/baslat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + erisimTokeni },
+        body: JSON.stringify({ gemi_id: seciliGemiId, hat_id: seciliHatId }),
+      });
+      const veri = await yanit.json();
+      if (!yanit.ok) {
+        setSeferHatasi(veri.hata || 'Sefer baslatilamadi.');
+        return;
+      }
+      setSeciliSeferId(veri.sefer_id);
+      setEkran('panel');
+    } catch {
+      setSeferHatasi('Sunucuya ulasilamadi.');
+    } finally {
+      setSeferIslemiSuruyor(false);
+    }
+  }
+
+  function seferSec(seferId) {
+    setSeciliSeferId(seferId);
+    setEkran('panel');
+  }
+
+  function seferiBitir() {
+    Alert.alert('Seferi Bitir', 'Bu seferi bitirmek istediginizden emin misiniz?', [
+      { text: 'Vazgec', style: 'cancel' },
+      {
+        text: 'Evet, Bitir',
+        onPress: async () => {
+          try {
+            const yanit = await fetch(SUNUCU_ADRESI + '/sefer/bitir', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + erisimTokeni },
+              body: JSON.stringify({ sefer_id: seciliSeferId }),
+            });
+            if (!yanit.ok) {
+              const veri = await yanit.json();
+              Alert.alert('Hata', veri.hata || 'Sefer bitirilemedi.');
+              return;
+            }
+            setSeciliSeferId(null);
+            setEkran('sefer-sec');
+          } catch {
+            Alert.alert('Hata', 'Sunucuya ulasilamadi.');
+          }
+        },
+      },
+    ]);
+  }
+
   function acilDurumBaslat() {
     Alert.alert(
       'Acil Durum Baslat',
@@ -141,17 +247,13 @@ export default function App() {
           style: 'destructive',
           onPress: () => {
             if (!soketRef.current) return;
-            soketRef.current.emit(
-              'acil-durum-baslat',
-              { gemi_adi: 'Yalova Feribotu 1' },
-              (yanit) => {
-                if (yanit && yanit.tamam) {
-                  setAcilDurumAktif(true);
-                } else {
-                  Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum baslatilamadi.');
-                }
+            soketRef.current.emit('acil-durum-baslat', {}, (yanit) => {
+              if (yanit && yanit.tamam) {
+                setAcilDurumAktif(true);
+              } else {
+                Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum baslatilamadi.');
               }
-            );
+            });
           },
         },
       ]
@@ -168,17 +270,13 @@ export default function App() {
           text: 'Evet, Bitir',
           onPress: () => {
             if (!soketRef.current) return;
-            soketRef.current.emit(
-              'acil-durum-bitir',
-              { gemi_adi: 'Yalova Feribotu 1' },
-              (yanit) => {
-                if (yanit && yanit.tamam) {
-                  setAcilDurumAktif(false);
-                } else {
-                  Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum bitirilemedi.');
-                }
+            soketRef.current.emit('acil-durum-bitir', {}, (yanit) => {
+              if (yanit && yanit.tamam) {
+                setAcilDurumAktif(false);
+              } else {
+                Alert.alert('Hata', (yanit && yanit.hata) || 'Acil durum bitirilemedi.');
               }
-            );
+            });
           },
         },
       ]
@@ -190,127 +288,193 @@ export default function App() {
     const yeniSayi = Math.max(0, yolcuSayisi + fark);
     setYolcuSayisi(yeniSayi);
     if (soketRef.current) {
-      soketRef.current.emit(
-        'yolcu-sayisi-guncelle',
-        { sayi: yeniSayi, gemi_adi: 'Yalova Feribotu 1' },
-        (yanit) => {
-          if (!yanit || !yanit.tamam) {
-            setYolcuSayisi(oncekiSayi);
-            Alert.alert('Hata', (yanit && yanit.hata) || 'Yolcu sayisi guncellenemedi.');
-          }
+      soketRef.current.emit('yolcu-sayisi-guncelle', { sayi: yeniSayi }, (yanit) => {
+        if (!yanit || !yanit.tamam) {
+          setYolcuSayisi(oncekiSayi);
+          Alert.alert('Hata', (yanit && yanit.hata) || 'Yolcu sayisi guncellenemedi.');
         }
-      );
+      });
     }
+  }
+
+  let icerik;
+
+  if (tokenYukleniyor || ekran === 'yukleniyor') {
+    icerik = (
+      <View style={styles.govde}>
+        <Text style={styles.etiket}>Yukleniyor...</Text>
+      </View>
+    );
+  } else if (!erisimTokeni) {
+    icerik = (
+      <View style={styles.govde}>
+        <View style={styles.durumKutusu}>
+          <Text style={styles.etiket}>KULLANICI ADI</Text>
+          <TextInput
+            style={styles.anahtarGirisAlani}
+            value={kullaniciAdiGirisi}
+            onChangeText={setKullaniciAdiGirisi}
+            placeholder="Kullanici adinizi girin"
+            autoCapitalize="none"
+          />
+        </View>
+        <View style={styles.durumKutusu}>
+          <Text style={styles.etiket}>SIFRE</Text>
+          <TextInput
+            style={styles.anahtarGirisAlani}
+            value={sifreGirisi}
+            onChangeText={setSifreGirisi}
+            placeholder="Sifrenizi girin"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+        </View>
+        {girisHatasi ? <Text style={styles.hataYazisi}>{girisHatasi}</Text> : null}
+        <TouchableOpacity
+          style={[styles.buyukButon, styles.bitirButon, girisYapiliyor && styles.pasifButon]}
+          onPress={girisYap}
+          disabled={girisYapiliyor}
+        >
+          <Text style={styles.buyukButonYazi}>{girisYapiliyor ? 'GIRIS YAPILIYOR...' : 'GIRIS YAP'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  } else if (ekran === 'sefer-sec') {
+    icerik = (
+      <ScrollView style={styles.govde}>
+        <Text style={styles.etiket}>AKTIF SEFERLER</Text>
+        {aktifSeferler.length === 0 ? (
+          <Text style={styles.degerYazi}>Su an aktif bir sefer yok.</Text>
+        ) : (
+          aktifSeferler.map((sefer) => (
+            <TouchableOpacity key={sefer.sefer_id} style={styles.durumKutusu} onPress={() => seferSec(sefer.sefer_id)}>
+              <Text style={styles.degerYazi}>{sefer.gemi_adi}</Text>
+              <Text style={styles.etiket}>{sefer.hat_adi}</Text>
+            </TouchableOpacity>
+          ))
+        )}
+        <TouchableOpacity style={[styles.buyukButon, styles.baslatButon]} onPress={() => setEkran('sefer-baslat')}>
+          <Text style={styles.buyukButonYazi}>YENI SEFER BASLAT</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.anahtarDegistirButon} onPress={oturumuKapat}>
+          <Text style={styles.anahtarDegistirYazi}>Cikis Yap</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  } else if (ekran === 'sefer-baslat') {
+    icerik = (
+      <ScrollView style={styles.govde}>
+        <Text style={styles.etiket}>GEMI SECIN</Text>
+        {gemiler.map((gemi) => (
+          <TouchableOpacity
+            key={gemi.id}
+            style={[styles.durumKutusu, seciliGemiId === gemi.id && styles.seciliKutu]}
+            onPress={() => setSeciliGemiId(gemi.id)}
+          >
+            <Text style={styles.degerYazi}>{gemi.ad}</Text>
+          </TouchableOpacity>
+        ))}
+        <Text style={styles.etiket}>HAT SECIN</Text>
+        {hatlar.map((hat) => (
+          <TouchableOpacity
+            key={hat.id}
+            style={[styles.durumKutusu, seciliHatId === hat.id && styles.seciliKutu]}
+            onPress={() => setSeciliHatId(hat.id)}
+          >
+            <Text style={styles.degerYazi}>{hat.ad}</Text>
+          </TouchableOpacity>
+        ))}
+        {seferHatasi ? <Text style={styles.hataYazisi}>{seferHatasi}</Text> : null}
+        <TouchableOpacity
+          style={[styles.buyukButon, styles.baslatButon, seferIslemiSuruyor && styles.pasifButon]}
+          onPress={seferBaslat}
+          disabled={seferIslemiSuruyor}
+        >
+          <Text style={styles.buyukButonYazi}>{seferIslemiSuruyor ? 'BASLATILIYOR...' : 'SEFERI BASLAT'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.anahtarDegistirButon} onPress={() => setEkran('sefer-sec')}>
+          <Text style={styles.anahtarDegistirYazi}>Geri</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  } else {
+    icerik = (
+      <View style={styles.govde}>
+        <View style={styles.durumKutusu}>
+          <Text style={styles.etiket}>BAGLANTI DURUMU</Text>
+          <View style={styles.satirIci}>
+            <View
+              style={[
+                styles.durumNoktasi,
+                { backgroundColor: baglantiDurumu === 'Bagli' ? '#2E7D32' : '#C62828' },
+              ]}
+            />
+            <Text style={styles.degerYazi}>{baglantiDurumu}</Text>
+          </View>
+        </View>
+
+        <View style={styles.durumKutusu}>
+          <Text style={styles.etiket}>ACIL DURUM STATUSU</Text>
+          <Text
+            style={[
+              styles.acilDurumYazisi,
+              { color: acilDurumAktif ? '#C62828' : '#2E7D32' },
+            ]}
+          >
+            {acilDurumAktif ? 'AKTIF ACIL DURUM VAR' : 'NORMAL'}
+          </Text>
+        </View>
+
+        <View style={styles.durumKutusu}>
+          <Text style={styles.etiket}>ENGELLI YOLCU SAYISI</Text>
+          <View style={styles.sayacSatiri}>
+            <TouchableOpacity style={styles.sayacButon} onPress={() => yolcuSayisiDegistir(-1)}>
+              <Text style={styles.sayacButonYazi}>-</Text>
+            </TouchableOpacity>
+            <Text style={styles.sayacDeger}>{yolcuSayisi}</Text>
+            <TouchableOpacity style={styles.sayacButon} onPress={() => yolcuSayisiDegistir(1)}>
+              <Text style={styles.sayacButonYazi}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.buyukButon, styles.baslatButon, acilDurumAktif && styles.pasifButon]}
+          onPress={acilDurumBaslat}
+          disabled={acilDurumAktif}
+        >
+          <Text style={styles.buyukButonYazi}>ACIL DURUM BASLAT</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.buyukButon, styles.bitirButon, !acilDurumAktif && styles.pasifButon]}
+          onPress={acilDurumBitir}
+          disabled={!acilDurumAktif}
+        >
+          <Text style={styles.buyukButonYazi}>ACIL DURUMU BITIR</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.buyukButon, styles.bitirButon]} onPress={seferiBitir}>
+          <Text style={styles.buyukButonYazi}>SEFERI BITIR</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.anahtarDegistirButon} onPress={oturumuKapat}>
+          <Text style={styles.anahtarDegistirYazi}>Cikis Yap</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
     <View style={styles.disKapsayici}>
       <StatusBar barStyle="light-content" backgroundColor="#0D3B66" />
-
-      {tokenYukleniyor ? (
-        <View style={styles.govde}>
-          <Text style={styles.etiket}>Yukleniyor...</Text>
+      {ekran === 'panel' && erisimTokeni ? (
+        <View style={styles.ustCubuk}>
+          <Text style={styles.ustCubukBaslik}>Personel Paneli</Text>
+          <Text style={styles.ustCubukAltBaslik}>IDO Engelsiz Navigasyon</Text>
         </View>
-      ) : !erisimTokeni ? (
-        <View style={styles.govde}>
-          <View style={styles.durumKutusu}>
-            <Text style={styles.etiket}>KULLANICI ADI</Text>
-            <TextInput
-              style={styles.anahtarGirisAlani}
-              value={kullaniciAdiGirisi}
-              onChangeText={setKullaniciAdiGirisi}
-              placeholder="Kullanici adinizi girin"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.durumKutusu}>
-            <Text style={styles.etiket}>SIFRE</Text>
-            <TextInput
-              style={styles.anahtarGirisAlani}
-              value={sifreGirisi}
-              onChangeText={setSifreGirisi}
-              placeholder="Sifrenizi girin"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-          {girisHatasi ? <Text style={styles.hataYazisi}>{girisHatasi}</Text> : null}
-          <TouchableOpacity
-            style={[styles.buyukButon, styles.bitirButon, girisYapiliyor && styles.pasifButon]}
-            onPress={girisYap}
-            disabled={girisYapiliyor}
-          >
-            <Text style={styles.buyukButonYazi}>{girisYapiliyor ? 'GIRIS YAPILIYOR...' : 'GIRIS YAP'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <View style={styles.ustCubuk}>
-            <Text style={styles.ustCubukBaslik}>Personel Paneli</Text>
-            <Text style={styles.ustCubukAltBaslik}>IDO Engelsiz Navigasyon</Text>
-          </View>
-
-          <View style={styles.govde}>
-            <View style={styles.durumKutusu}>
-              <Text style={styles.etiket}>BAGLANTI DURUMU</Text>
-              <View style={styles.satirIci}>
-                <View
-                  style={[
-                    styles.durumNoktasi,
-                    { backgroundColor: baglantiDurumu === 'Bagli' ? '#2E7D32' : '#C62828' },
-                  ]}
-                />
-                <Text style={styles.degerYazi}>{baglantiDurumu}</Text>
-              </View>
-            </View>
-
-            <View style={styles.durumKutusu}>
-              <Text style={styles.etiket}>ACIL DURUM STATUSU</Text>
-              <Text
-                style={[
-                  styles.acilDurumYazisi,
-                  { color: acilDurumAktif ? '#C62828' : '#2E7D32' },
-                ]}
-              >
-                {acilDurumAktif ? 'AKTIF ACIL DURUM VAR' : 'NORMAL'}
-              </Text>
-            </View>
-
-            <View style={styles.durumKutusu}>
-              <Text style={styles.etiket}>ENGELLI YOLCU SAYISI</Text>
-              <View style={styles.sayacSatiri}>
-                <TouchableOpacity style={styles.sayacButon} onPress={() => yolcuSayisiDegistir(-1)}>
-                  <Text style={styles.sayacButonYazi}>-</Text>
-                </TouchableOpacity>
-                <Text style={styles.sayacDeger}>{yolcuSayisi}</Text>
-                <TouchableOpacity style={styles.sayacButon} onPress={() => yolcuSayisiDegistir(1)}>
-                  <Text style={styles.sayacButonYazi}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.buyukButon, styles.baslatButon, acilDurumAktif && styles.pasifButon]}
-              onPress={acilDurumBaslat}
-              disabled={acilDurumAktif}
-            >
-              <Text style={styles.buyukButonYazi}>ACIL DURUM BASLAT</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.buyukButon, styles.bitirButon, !acilDurumAktif && styles.pasifButon]}
-              onPress={acilDurumBitir}
-              disabled={!acilDurumAktif}
-            >
-              <Text style={styles.buyukButonYazi}>ACIL DURUMU BITIR</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.anahtarDegistirButon} onPress={oturumuKapat}>
-              <Text style={styles.anahtarDegistirYazi}>Cikis Yap</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+      ) : null}
+      {icerik}
     </View>
   );
 }
@@ -336,6 +500,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#1E6091',
   },
+  seciliKutu: { borderLeftColor: '#2E7D32', borderLeftWidth: 6 },
   anahtarGirisAlani: {
     borderWidth: 1,
     borderColor: '#5B7A8F',
