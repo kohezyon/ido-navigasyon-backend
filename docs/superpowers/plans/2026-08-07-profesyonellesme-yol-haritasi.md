@@ -17,7 +17,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) | ✅ Tamamlandı |
 | 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | 🟡 Kod tamamlandı, manuel doğrulama bekliyor |
-| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | - |
+| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | 🟡 Kod tamamlandı, manuel doğrulama bekliyor |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
@@ -110,4 +110,8 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 **Bekleyen manuel adım:** `db/gemiler_hatlar_seferler.sql` ve seed dosyası gerçek veritabanına henüz uygulanmadı (bu ortamda `psql`/`DATABASE_URL` yok); sefer başlat/seç/bitir akışı gerçek DB + Expo cihaz/emülatör ortamında uçtan uca doğrulanmadı. Bu ikisi tamamlanmadan Faz 2 "✅ Tamamlandı" olarak işaretlenmeyecek.
 
-Sıradaki: **Faz 3** (gerçek GPS entegrasyonu). Donanım erişimine göre iki seçenek var (bkz. yukarısı) — hangisiyle devam edileceği netleşmeden `superpowers:writing-plans` ile plan çıkarılamaz.
+**Faz 3 kod tarafı tamamlandı, "tamamlandı" olarak işaretlenmedi** (bkz. `2026-08-09-faz3-gercek-gps-entegrasyonu-design.md` / `2026-08-09-faz3-gercek-gps-entegrasyonu.md`, `main`'e merge edildi, 113/113 test yeşil, 20/20 çalıştırmada flaky değil). Seçenek A (kaptan telefonundan periyodik GPS) uygulandı: `konum-guncelle` socket event'i, sahte GPS simülasyonunun kaldırılması, gerçek hıza göre ETA hesaplaması, personel app'te `expo-location` ile 5sn'de bir (sadece ön planda) konum gönderimi. Final whole-branch review'da bulunan 1 Critical bulgu (varış-eşiği algoritması gerçek rotada sonsuza kadar takılabiliyordu — "yetişme" mantığıyla düzeltildi) ve 3 Important bulgu (test flakiness'inin gerçek kök nedeni — connect event race — bulunup düzeltildi; sefer-sec artık mevcut konumu da dönüyor; iOS'ta 5sn aralığın çalışmaması) düzeltildi ve doğrulandı.
+
+**Bekleyen manuel adım:** Kaptan/personel app'in gerçek bir cihazda GPS izin akışı, iki platformda da ~5sn'lik gönderim sıklığı, ve `konum-guncelle` yayınlarının gerçek backend+DB ile uçtan uca çalıştığı bu ortamda doğrulanamadı — bir insan operatör tarafından gerçek cihazda manuel test edilmeli.
+
+Sıradaki: **Faz 4** (güvenilirlik & operasyon altyapısı) — Faz 2 ve Faz 3'ün bekleyen manuel doğrulamaları tamamlandıktan sonra ele alınması önerilir.
