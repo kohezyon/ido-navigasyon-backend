@@ -21,7 +21,7 @@ Bu faz, simülasyonu kaptan/personel telefonunun gerçek GPS'inden gelen konumla
 
 ## Sunucu Mimarisi
 
-**Kaldırılanlar:** `sahteGpsGuncelle`, `ADIM_BUYUKLUGU`/`HIZ_METRE_SANIYE` sabitleri, `setInterval(konumKontrolVeYayinla, 1000)` kurulumu (`server.js`'in üst kısmında, `sunucu.listen`'e yakın).
+**Kaldırılanlar:** `sahteGpsGuncelle`, `ADIM_BUYUKLUGU`/`HIZ_METRE_SANIYE` sabitleri, `setInterval(konumKontrolVeYayinla, 1000)` kurulumu (`server.js`'in üst kısmında, `sunucu.listen`'e yakın). `HIZ_METRE_SANIYE`'nin yerini, ETA hesaplaması için aşağıda tanımlanan `VARSAYILAN_HIZ_METRE_SANIYE` (sabit varsayım değil, sadece cihaz hız vermediğinde devreye giren yedek) alır.
 
 **Yeni akış — event-driven (zamanlayıcı yok):**
 
@@ -52,13 +52,15 @@ function konumGecerliMi(enlem, boylam) {
 }
 ```
 
+**ETA hesaplama düzeltmesi (tasarımın ilk taslağında eksikti):** Bugünkü `toplam_kalan_dakika`/`hedefe_kalan_dakika` alanları `HIZ_METRE_SANIYE` sabit-hız simülasyon değerinden hesaplanıyor; bu sabit kaldırılınca ETA'yı hesaplayacak bir hız kaynağı kalmaz. Çözüm: `konum-guncelle` payload'ına opsiyonel bir `hiz` alanı (metre/saniye) eklenir — Expo Location'ın `watchPositionAsync` callback'i `coords.speed`'i zaten GPS donanımından (Doppler tabanlı, ardışık nokta farkından hesaplamaktan daha güvenilir) sağlıyor. Sunucu tarafında: `hiz` pozitif bir sayısı geldiyse ETA onunla hesaplanır; gelmezse veya `<= 0` ise (GPS henüz ısınmamış, cihaz desteklemiyor, veya gemi limanda duruyor) sabit bir `VARSAYILAN_HIZ_METRE_SANIYE = 7` (yaklaşık 25 km/s, makul bir feribot seyir hızı) ile hesaplanır — ETA hiç gösterilmemek yerine kaba bir tahmin gösterir.
+
 **Hata yönetimi:** Geçersiz payload veya yetkisiz/sefer-seçilmemiş durumlarda `{tamam:false, hata:'...'}` ack — `yolcu-sayisi-guncelle` ile aynı desen. Sunucu tarafında ek bir hata durumu yok; konum kabul edilip edilmediği sadece ack ile bildirilir, ayrı bir uyarı yayını yapılmaz.
 
 ## Personel App Değişiklikleri
 
 `expo-location` paketi eklenir (şu an bağımlılıklarda yok). Sefer paneli (`ekran === 'panel'`) açıkken ve rol `kaptan`/`admin` ise:
 1. Foreground konum izni istenir (`Location.requestForegroundPermissionsAsync`).
-2. İzin verilirse `Location.watchPositionAsync({ accuracy: Balanced, timeInterval: 5000 }, callback)` başlatılır; her callback'te `soketRef.current.emit('konum-guncelle', { enlem, boylam })`.
+2. İzin verilirse `Location.watchPositionAsync({ accuracy: Balanced, timeInterval: 5000 }, callback)` başlatılır; her callback'te `soketRef.current.emit('konum-guncelle', { enlem, boylam, hiz: coords.speed })` — `coords.speed` genelde bir sayı ya da `null`'dur, olduğu gibi iletilir.
 3. Panelden çıkılınca (sefer bitirilince veya çıkış yapılınca) `watchPositionAsync`'in döndürdüğü subscription `remove()` ile durdurulur.
 4. İzin reddedilirse: panel yine açılır (acil durum/yolcu sayısı butonları konum olmadan da çalışmalı), ekranda "Konum izni verilmedi — gemi konumu paylaşılamıyor" gibi görünür bir uyarı gösterilir. Uygulama çökmemeli, akış kesilmemeli.
 
@@ -70,6 +72,7 @@ Yolcu app'te değişiklik yok (konum tüketimi zaten `gemi-konum-guncelleme` eve
 - `konumGecerliMi` için birim testleri (`validation.test.js`) — sınır değerler (enlem ±90, boylam ±180, tip hataları).
 - `konum-guncelle` socket handler'ı için: auth/rol/sefer-seçili kontrolü (mevcut `acil-durum-baslat` testleriyle aynı desen), geçersiz payload reddi, başarılı güncellemenin `sefer.konum`'u değiştirdiği ve doğru odaya `gemi-konum-guncelleme` yayınladığı.
 - Hedef ilerletme/varış tespiti için birim testi: metre-eşiği sınırında (`VARIS_ESIGI_METRE`'nin altında/üstünde) doğru davranış.
+- ETA hesaplama testi: `hiz` gönderildiğinde onunla, gönderilmediğinde/`<=0` olduğunda `VARSAYILAN_HIZ_METRE_SANIYE` ile hesaplandığının doğrulanması.
 - `konumKontrolVeYayinla`'nın tek-sefer-parametreli hale gelmesi sonrası, mevcut geofence/ilerleme/ETA testlerinin (Faz 2'den kalan) yeni imzaya uyacak şekilde güncellenmesi.
 
 **Personel app:** Otomatik test altyapısı yok (proje kararı, Faz 1'den beri) — manuel doğrulama: gerçek cihazda izin akışı, izin reddi durumunda panelin çökmemesi, konum gönderiminin sunucu loglarında görünmesi.
