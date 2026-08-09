@@ -8,6 +8,7 @@ const { io: ioClient } = require('socket.io-client');
 const { app, havuz, sunucu } = require('./server.js');
 const { aktifSeferler, seferStateOlustur, konumKontrolVeYayinla } = require('./server.js');
 
+const { ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { sifreHashle } = require('./sifreYardimcisi.js');
 const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
 const { erisimTokeniOlustur } = require('./jwtYardimcisi.js');
@@ -19,17 +20,13 @@ const { tokenDogrula } = require('./jwtYardimcisi.js');
 // bunu tum dosya icin TEK bir listen/close yasam dongusune indirgiyoruz (gereksiz
 // yeniden baglanti/kapanma dongulerini azaltir).
 //
-// Asil flake kaynagi olcumle dogrulandi: `npm test` tum test dosyalarini paralel
-// (fork) surecler halinde calistirdiginda ara sira CPU cekismesi olusuyor; varsayilan
-// engine.io tasima sirasi ("polling" ile baslayip sonra "websocket"e yukseltme) bu
-// cekisme altinda 5000ms'lik vitest test zaman asimini asabiliyor (gozlemlenen:
-// "yolcu-sayisi-guncelle yetkilendirmesi > ... yolcu-sayisi-yayin yapabilir" testi
-// ~3 calistirmada 1'inde "Test timed out in 5000ms" ile basarisiz oluyordu, hatta
-// --no-file-parallelism ile bile). Iki tamamlayici onlem aliyoruz: (1) test
-// istemcilerini doner `transports: ['websocket']` ile sabitleyerek polling/yukseltme
-// asamasini tamamen atliyoruz (bkz. asagidaki yeniSoketBaglantisi()), (2) en cok ag
-// gidis-donusu iceren teste (5 round-trip) makul bir zaman asimi payi tanimliyoruz.
-// Bu ikisi flake oranini olculebilir sekilde dusurdu (bkz. final-review-fix-report.md).
+// Flake onlemleri: (1) test istemcilerini `transports: ['websocket']` ile sabitleyip
+// polling/yukseltme asamasini atliyoruz (bkz. asagidaki yeniSoketBaglantisi()), (2) en
+// cok ag gidis-donusu iceren testlere makul bir zaman asimi payi taniyoruz, (3) asil
+// kok neden olan 'connect' olayi kacirma yarisini baglantiyiBekle() ile kaldiriyoruz
+// (bkz. asagidaki aciklama), (4) soket acan bloklar acilan soketleri afterEach'te
+// kapatir, boylece zaman asimina ugrayan bir test dosya sonundaki sunucu.close()'u
+// kilitleyemez. Olcum sonuclari icin bkz. final-review-fix-report.md.
 let sunucuPortu;
 
 beforeAll(async () => {
@@ -39,6 +36,18 @@ beforeAll(async () => {
 
 function yeniSoketBaglantisi(secenekler) {
     return ioClient(`http://localhost:${sunucuPortu}`, { transports: ['websocket'], ...secenekler });
+}
+
+// Asil flake kaynagi olcumle bulundu: bir testte iki soket birlikte aciliyor ama
+// 'connect' dinleyicileri SIRAYLA (ilki await edildikten sonra) takiliyordu. Ikinci
+// soket, birincinin await'i beklenirken baglanirsa 'connect' olayi kaciriliyor ve
+// `new Promise((r) => soket.on('connect', r))` sonsuza kadar asili kaliyordu -> test
+// 10sn zaman asimina ugruyor, disconnect'leri hic calismiyor ve dosya sonundaki
+// afterAll'daki sunucu.close() de kilitleniyordu. Bu yardimci, soket zaten bagliysa
+// hemen doner; boylece olayi kacirma yarisi tamamen ortadan kalkar.
+function baglantiyiBekle(soket) {
+    if (soket.connected) return Promise.resolve();
+    return new Promise((resolve) => soket.once('connect', resolve));
 }
 
 describe('JWT_GIZLI_ANAHTARI dogrulamasi', () => {
@@ -661,7 +670,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
 
     it('token gonderilmezse baglanti kurulur (yolcu app icin anonim/dinleyici erisim)', async () => {
         const gonderen = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
         expect(gonderen.connected).toBe(true);
         gonderen.disconnect();
     });
@@ -691,7 +700,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         );
 
         const gonderen = yeniSoketBaglantisi({ auth: { token: kisaOmurluToken } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -706,7 +715,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
 
     it('gecersiz/aktif olmayan sefer_id ile sefer-sec basarisiz doner', async () => {
         const gonderen = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
 
         const yanit = await new Promise((resolve) => {
             gonderen.emit('sefer-sec', { sefer_id: 999 }, resolve);
@@ -719,7 +728,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     it('sefer secilmeden acil-durum-baslat gonderilirse "Sefer secilmedi" doner', async () => {
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         const gonderen = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
 
         const yanit = await new Promise((resolve) => {
             gonderen.emit('acil-durum-baslat', {}, resolve);
@@ -733,7 +742,7 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
         const gonderen = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
         const yanit = await new Promise((resolve) => {
@@ -744,26 +753,31 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         gonderen.disconnect();
     });
 
-    it('sefer-sec basarili oldugunda mevcut acil durum ve yolcu sayisi durumunu doner', async () => {
-        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+    it('sefer-sec basarili oldugunda mevcut acil durum, yolcu sayisi ve konum durumunu doner', async () => {
+        const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        aktifSeferler.set(1, sefer);
 
         const gonderen = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
 
         const ilkYanit = await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
-        expect(ilkYanit).toEqual({ tamam: true, acil_durum_aktif: false, yolcu_sayisi: 0 });
+        // konum, kaptanin ilk GPS verisi gelmeden de dolu olmali (rotanin ilk noktasi).
+        expect(ilkYanit).toEqual({ tamam: true, acil_durum_aktif: false, yolcu_sayisi: 0, konum: { enlem: 0, boylam: 0 } });
+        expect(ilkYanit.konum).toEqual(sefer.konum);
 
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         const kaptan = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => kaptan.on('connect', resolve));
+        await baglantiyiBekle(kaptan);
         await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
         await new Promise((resolve) => kaptan.emit('acil-durum-baslat', {}, resolve));
         await new Promise((resolve) => kaptan.emit('yolcu-sayisi-guncelle', { sayi: 4 }, resolve));
+        sefer.konum = { enlem: 0.5, boylam: 0.5 };
 
         const gonderenIki = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderenIki.on('connect', resolve));
+        await baglantiyiBekle(gonderenIki);
         const ikinciYanit = await new Promise((resolve) => gonderenIki.emit('sefer-sec', { sefer_id: 1 }, resolve));
-        expect(ikinciYanit).toEqual({ tamam: true, acil_durum_aktif: true, yolcu_sayisi: 4 });
+        expect(ikinciYanit).toEqual({ tamam: true, acil_durum_aktif: true, yolcu_sayisi: 4, konum: { enlem: 0.5, boylam: 0.5 } });
+        expect(ikinciYanit.konum).toEqual(sefer.konum);
 
         gonderen.disconnect();
         kaptan.disconnect();
@@ -786,7 +800,7 @@ describe('sefer odasi izolasyonu', () => {
         const dinleyiciA = yeniSoketBaglantisi();
         const dinleyiciB = yeniSoketBaglantisi();
 
-        await Promise.all([kaptanA, dinleyiciA, dinleyiciB].map((s) => new Promise((r) => s.on('connect', r))));
+        await Promise.all([kaptanA, dinleyiciA, dinleyiciB].map(baglantiyiBekle));
         await Promise.all([
             new Promise((r) => kaptanA.emit('sefer-sec', { sefer_id: 1 }, r)),
             new Promise((r) => dinleyiciA.emit('sefer-sec', { sefer_id: 1 }, r)),
@@ -819,7 +833,7 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
 
     it('anonim (tokensiz) baglanti yolcu-sayisi-guncelle gonderirse Yetkisiz doner', async () => {
         const gonderen = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
 
         const yanit = await new Promise((resolve) => {
             gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3 }, resolve);
@@ -840,8 +854,8 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
 
         const gonderen = yeniSoketBaglantisi({ auth: { token } });
         const dinleyici = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
-        await new Promise((resolve) => dinleyici.on('connect', resolve));
+        await baglantiyiBekle(gonderen);
+        await baglantiyiBekle(dinleyici);
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
         await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
@@ -856,13 +870,28 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
 });
 
 describe('konum-guncelle yetkilendirmesi', () => {
+    // Bu bloktaki testler gercek soket baglantilari acar. Bir test zaman asimina
+    // ugrarsa sonundaki .disconnect() cagrilari hic calismaz; acik kalan soketler
+    // dosya sonundaki afterAll'daki sunucu.close()'u bloklayip tek bir flake testi
+    // tum dosyanin basarisizligina cevirirdi. Acilan her soketi burada takip edip
+    // afterEach'te kapatiyoruz (mutlu yoldaki disconnect'ler yerine gecmez, guvenlik agi).
+    let acikSoketler = [];
+
+    function izlenenSoket(secenekler) {
+        const soket = yeniSoketBaglantisi(secenekler);
+        acikSoketler.push(soket);
+        return soket;
+    }
+
     afterEach(() => {
+        acikSoketler.forEach((s) => s.disconnect());
+        acikSoketler = [];
         aktifSeferler.clear();
     });
 
     it('anonim (tokensiz) baglanti konum-guncelle gonderirse Yetkisiz doner', async () => {
-        const gonderen = yeniSoketBaglantisi();
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        const gonderen = izlenenSoket();
+        await baglantiyiBekle(gonderen);
 
         const yanit = await new Promise((resolve) => {
             gonderen.emit('konum-guncelle', { enlem: 40.65, boylam: 29.26 }, resolve);
@@ -875,8 +904,8 @@ describe('konum-guncelle yetkilendirmesi', () => {
     it('personel rolundeki token ile sefer secilmis olsa da konum-guncelle Yetkisiz rol doner', async () => {
         aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
-        const gonderen = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        const gonderen = izlenenSoket({ auth: { token } });
+        await baglantiyiBekle(gonderen);
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
         const yanit = await new Promise((resolve) => {
@@ -889,8 +918,8 @@ describe('konum-guncelle yetkilendirmesi', () => {
 
     it('kaptan rolunde ama sefer secilmeden konum-guncelle gonderilirse Sefer secilmedi doner', async () => {
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const gonderen = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        const gonderen = izlenenSoket({ auth: { token } });
+        await baglantiyiBekle(gonderen);
 
         const yanit = await new Promise((resolve) => {
             gonderen.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve);
@@ -904,8 +933,8 @@ describe('konum-guncelle yetkilendirmesi', () => {
         const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
         aktifSeferler.set(1, sefer);
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const gonderen = yeniSoketBaglantisi({ auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
+        const gonderen = izlenenSoket({ auth: { token } });
+        await baglantiyiBekle(gonderen);
         await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
         const oncekiKonum = { ...sefer.konum };
@@ -923,10 +952,10 @@ describe('konum-guncelle yetkilendirmesi', () => {
         const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
         aktifSeferler.set(1, sefer);
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
-        const kaptan = yeniSoketBaglantisi({ auth: { token } });
-        const dinleyici = yeniSoketBaglantisi();
-        await new Promise((resolve) => kaptan.on('connect', resolve));
-        await new Promise((resolve) => dinleyici.on('connect', resolve));
+        const kaptan = izlenenSoket({ auth: { token } });
+        const dinleyici = izlenenSoket();
+        await baglantiyiBekle(kaptan);
+        await baglantiyiBekle(dinleyici);
         await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
         await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
@@ -947,41 +976,58 @@ describe('konum-guncelle yetkilendirmesi', () => {
         dinleyici.disconnect();
     }, 10000);
 
-    it('hiz gonderilmezse VARSAYILAN_HIZ_METRE_SANIYE ile hesaplanir (hiz gonderilenden daha yuksek ETA)', async () => {
+    // Onceden bu iki senaryo (acik hiz / hiz yok) tek testte 4 soket ve ~10 gidis-donus
+    // ile kosuluyordu ve tam suite calistirmalarinin ~%27'sinde zaman asimina ugruyordu.
+    // Iki bagimsiz teste bolup her birini 2 sokete indirdik; karsilastirma yerine her test
+    // kendi bilinen beklenen degerini dogruluyor (mesafe/hiz/60).
+    it('gonderilen hiz ile hedefe_kalan_dakika mesafe/hiz/60 olarak hesaplanir', async () => {
         vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
-        const seferHizli = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
-        const seferYavas = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' };
-        aktifSeferler.set(1, seferHizli);
-        aktifSeferler.set(2, seferYavas);
+        const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        aktifSeferler.set(1, sefer);
         const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
 
-        const kaptanHizli = yeniSoketBaglantisi({ auth: { token } });
-        const dinleyiciHizli = yeniSoketBaglantisi();
-        await new Promise((resolve) => kaptanHizli.on('connect', resolve));
-        await new Promise((resolve) => dinleyiciHizli.on('connect', resolve));
-        await new Promise((resolve) => kaptanHizli.emit('sefer-sec', { sefer_id: 1 }, resolve));
-        await new Promise((resolve) => dinleyiciHizli.emit('sefer-sec', { sefer_id: 1 }, resolve));
-        const yayinHizliPromise = new Promise((resolve) => dinleyiciHizli.on('gemi-konum-guncelleme', resolve));
-        await new Promise((resolve) => kaptanHizli.emit('konum-guncelle', { enlem: 0.5, boylam: 0, hiz: 20 }, resolve));
-        const yayinHizli = await yayinHizliPromise;
+        const kaptan = izlenenSoket({ auth: { token } });
+        const dinleyici = izlenenSoket();
+        await baglantiyiBekle(kaptan);
+        await baglantiyiBekle(dinleyici);
+        await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
-        const kaptanYavas = yeniSoketBaglantisi({ auth: { token } });
-        const dinleyiciYavas = yeniSoketBaglantisi();
-        await new Promise((resolve) => kaptanYavas.on('connect', resolve));
-        await new Promise((resolve) => dinleyiciYavas.on('connect', resolve));
-        await new Promise((resolve) => kaptanYavas.emit('sefer-sec', { sefer_id: 2 }, resolve));
-        await new Promise((resolve) => dinleyiciYavas.emit('sefer-sec', { sefer_id: 2 }, resolve));
-        const yayinYavasPromise = new Promise((resolve) => dinleyiciYavas.on('gemi-konum-guncelleme', resolve));
-        await new Promise((resolve) => kaptanYavas.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve)); // hiz yok -> VARSAYILAN_HIZ_METRE_SANIYE=7
-        const yayinYavas = await yayinYavasPromise;
+        const yayinPromise = new Promise((resolve) => dinleyici.on('gemi-konum-guncelleme', resolve));
+        await new Promise((resolve) => kaptan.emit('konum-guncelle', { enlem: 0.5, boylam: 0, hiz: 20 }, resolve));
+        const yayin = await yayinPromise;
 
-        // Ayni mesafe, farkli hiz: hiz=20 olan daha kisa ETA, varsayilan hiz=7 olan daha uzun ETA vermeli.
-        expect(yayinHizli.hedefe_kalan_dakika).toBeLessThan(yayinYavas.hedefe_kalan_dakika);
+        // (0.5,0) -> (1,0) arasi ~55597 m; hiz=20 m/s ile ~46.3 dakika.
+        const mesafe = ikiNoktaArasiMesafe(0.5, 0, 1, 0);
+        expect(yayin.hedefe_kalan_dakika).toBeCloseTo(mesafe / 20 / 60, 5);
 
-        kaptanHizli.disconnect();
-        dinleyiciHizli.disconnect();
-        kaptanYavas.disconnect();
-        dinleyiciYavas.disconnect();
+        kaptan.disconnect();
+        dinleyici.disconnect();
+    }, 10000);
+
+    it('hiz gonderilmezse hedefe_kalan_dakika VARSAYILAN_HIZ_METRE_SANIYE (7 m/s) ile hesaplanir', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+        const sefer = { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 0 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi B' };
+        aktifSeferler.set(1, sefer);
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+
+        const kaptan = izlenenSoket({ auth: { token } });
+        const dinleyici = izlenenSoket();
+        await baglantiyiBekle(kaptan);
+        await baglantiyiBekle(dinleyici);
+        await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const yayinPromise = new Promise((resolve) => dinleyici.on('gemi-konum-guncelleme', resolve));
+        await new Promise((resolve) => kaptan.emit('konum-guncelle', { enlem: 0.5, boylam: 0 }, resolve)); // hiz yok -> VARSAYILAN_HIZ_METRE_SANIYE=7
+        const yayin = await yayinPromise;
+
+        // Ayni mesafe (~55597 m), varsayilan hiz=7 m/s ile ~132.4 dakika.
+        const mesafe = ikiNoktaArasiMesafe(0.5, 0, 1, 0);
+        expect(yayin.hedefe_kalan_dakika).toBeCloseTo(mesafe / 7 / 60, 5);
+
+        kaptan.disconnect();
+        dinleyici.disconnect();
     }, 10000);
 });
 

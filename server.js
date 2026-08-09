@@ -317,7 +317,13 @@ io.on('connection', (soket) => {
             geriBildir({
                 tamam: true,
                 acil_durum_aktif: !!sefer.acilDurumAktif,
-                yolcu_sayisi: sefer.yolcuSayisi || 0
+                yolcu_sayisi: sefer.yolcuSayisi || 0,
+                // Simulasyon tik'i kaldirildigi icin, kaptanin ilk gercek GPS verisi
+                // gelene kadar odaya hic gemi-konum-guncelleme yayinlanmiyor. Sefere
+                // yeni katilan istemcinin "hayalet gemi" gormemesi icin o anki
+                // konumu ack ile hemen veriyoruz (sefer.konum her zaman dolu:
+                // seferStateOlustur ilk rota noktasiyla baslatiyor).
+                konum: sefer.konum
             });
         }
     });
