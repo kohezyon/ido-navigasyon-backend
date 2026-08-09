@@ -78,30 +78,75 @@ describe('seferStateOlustur ve konumKontrolVeYayinla - coklu sefer bagimsizligi'
         expect(state.legMesafeleri[0]).toBe(0);
     });
 
-    it('iki aktif sefer birbirinden bagimsiz ilerler', async () => {
+    it('konumKontrolVeYayinla sadece verilen seferi etkiler, digerine dokunmaz', async () => {
         vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
 
-        const seferA = seferStateOlustur([
+        const seferA = { ...seferStateOlustur([
             { ad: 'A-Baslangic', enlem: 0, boylam: 0 },
             { ad: 'A-Hedef', enlem: 1, boylam: 0 }
-        ]);
-        const seferB = seferStateOlustur([
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        const seferB = { ...seferStateOlustur([
             { ad: 'B-Baslangic', enlem: 10, boylam: 10 },
             { ad: 'B-Hedef', enlem: 10, boylam: 11 }
-        ]);
-        aktifSeferler.set(1, { ...seferA, gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
-        aktifSeferler.set(2, { ...seferB, gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' });
+        ]), gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' };
+        aktifSeferler.set(1, seferA);
+        aktifSeferler.set(2, seferB);
 
-        const baslangicA = { ...aktifSeferler.get(1).konum };
-        const baslangicB = { ...aktifSeferler.get(2).konum };
+        const baslangicB = { ...seferB.konum };
+        const bHedefIndexOncesi = seferB.hedefIndex;
 
-        await konumKontrolVeYayinla();
+        await konumKontrolVeYayinla(1, seferA, 7);
 
-        expect(aktifSeferler.get(1).konum).not.toEqual(baslangicA);
-        expect(aktifSeferler.get(2).konum).not.toEqual(baslangicB);
-        // A sadece enlem ekseninde, B sadece boylam ekseninde ilerliyor olmali (birbirinden bagimsiz).
-        expect(aktifSeferler.get(1).konum.boylam).toBeCloseTo(baslangicA.boylam, 5);
-        expect(aktifSeferler.get(2).konum.enlem).toBeCloseTo(baslangicB.enlem, 5);
+        expect(seferB.konum).toEqual(baslangicB);
+        expect(seferB.hedefIndex).toBe(bHedefIndexOncesi);
+    });
+
+    it('hedefe VARIS_ESIGI_METRE icinde ise hedefIndex ilerler', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+
+        const sefer = { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 0, boylam: 0 },
+            { ad: 'Hedef', enlem: 0.0001, boylam: 0 },
+            { ad: 'Son', enlem: 1, boylam: 0 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        sefer.konum = { enlem: 0.0001, boylam: 0 }; // Hedef noktasinin ustunde (~0m), esigin (50m) altinda.
+        aktifSeferler.set(1, sefer);
+
+        await konumKontrolVeYayinla(1, sefer, 7);
+
+        expect(sefer.hedefIndex).toBe(2);
+    });
+
+    it('hedefe VARIS_ESIGI_METRE disindaysa hedefIndex ilerlemez', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+
+        const sefer = { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 0, boylam: 0 },
+            { ad: 'Hedef', enlem: 1, boylam: 0 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        sefer.konum = { enlem: 0.01, boylam: 0 }; // Hedefe (1,0) hala ~110km, esigin (50m) cok disinda.
+        aktifSeferler.set(1, sefer);
+
+        await konumKontrolVeYayinla(1, sefer, 7);
+
+        expect(sefer.hedefIndex).toBe(1);
+    });
+
+    it('son hedefe ulasinca varis bildirimi gonderilir, tekrar cagrilinca tekrar gonderilmez', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+
+        const sefer = { ...seferStateOlustur([
+            { ad: 'Baslangic', enlem: 0, boylam: 0 },
+            { ad: 'Son', enlem: 0.0001, boylam: 0 }
+        ]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' };
+        sefer.konum = { enlem: 0.0001, boylam: 0 };
+        aktifSeferler.set(1, sefer);
+
+        await konumKontrolVeYayinla(1, sefer, 7);
+        expect(sefer.varisBildirimiGonderildi).toBe(true);
+
+        await konumKontrolVeYayinla(1, sefer, 7);
+        expect(sefer.varisBildirimiGonderildi).toBe(true);
     });
 });
 
