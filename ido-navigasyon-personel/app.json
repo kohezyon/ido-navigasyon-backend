@@ -13,7 +13,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Gemi konumunu yolculara canli olarak gostermek icin konumunuza ihtiyacimiz var."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.kohezyon.idonavigasyonpersonel"
+      "package": "com.kohezyon.idonavigasyonpersonel",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "favicon": "./assets/favicon.png"

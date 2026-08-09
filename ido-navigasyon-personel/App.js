@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, TextInput, ScrollView } from 'react-native';
 import { io } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
+import * as Location from 'expo-location';
 
 const SUNUCU_ADRESI = process.env.EXPO_PUBLIC_SUNUCU_ADRESI || 'https://ido-navigasyon-backend.onrender.com';
 const ERISIM_TOKEN_DEPO_ADI = 'personel_erisim_tokeni';
@@ -30,6 +31,8 @@ export default function App() {
   const [seferHatasi, setSeferHatasi] = useState(null);
 
   const soketRef = useRef(null);
+  const konumAboneligiRef = useRef(null);
+  const [konumIzniHatasi, setKonumIzniHatasi] = useState(null);
   const yenilemeTokeniRef = useRef(null);
 
   useEffect(() => {
@@ -146,8 +149,33 @@ export default function App() {
       setEkran('sefer-sec');
     });
 
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setKonumIzniHatasi('Konum izni verilmedi - gemi konumu paylasilamiyor.');
+        return;
+      }
+      setKonumIzniHatasi(null);
+      konumAboneligiRef.current = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 5000 },
+        (konum) => {
+          if (soketRef.current) {
+            soketRef.current.emit('konum-guncelle', {
+              enlem: konum.coords.latitude,
+              boylam: konum.coords.longitude,
+              hiz: konum.coords.speed,
+            });
+          }
+        }
+      );
+    })();
+
     return () => {
       soket.disconnect();
+      if (konumAboneligiRef.current) {
+        konumAboneligiRef.current.remove();
+        konumAboneligiRef.current = null;
+      }
     };
   }, [erisimTokeni, seciliSeferId]);
 
@@ -419,6 +447,12 @@ export default function App() {
             <Text style={styles.degerYazi}>{baglantiDurumu}</Text>
           </View>
         </View>
+
+        {konumIzniHatasi ? (
+          <View style={styles.durumKutusu}>
+            <Text style={styles.hataYazisi}>{konumIzniHatasi}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.durumKutusu}>
           <Text style={styles.etiket}>ACIL DURUM STATUSU</Text>
