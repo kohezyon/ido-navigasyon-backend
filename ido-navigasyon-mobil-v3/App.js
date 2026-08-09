@@ -164,7 +164,10 @@ export default function App() {
       soket.emit('sefer-sec', { sefer_id: seciliSeferId }, (yanit) => {
         if (!yanit || !yanit.tamam) {
           setSeciliSeferId(null);
+          return;
         }
+        setAcilDurum(!!yanit.acil_durum_aktif);
+        setYolcuSayisi(yanit.yolcu_sayisi || 0);
       });
     });
 
@@ -395,7 +398,7 @@ export default function App() {
           <View>
             <Text style={[styles.ustCubukBaslik, { fontSize: 20 * boyutCarpani }]}>IDO Engelsiz Navigasyon</Text>
             <Text style={[styles.ustCubukAltBaslik, { fontSize: 13 * boyutCarpani }]}>
-              {acilDurum ? 'ACIL DURUM' : 'Yalova - Istanbul Hatti'}
+              {acilDurum ? 'ACIL DURUM' : (aktifSeferler.find((s) => s.sefer_id === seciliSeferId)?.hat_adi || 'Hat bilgisi yok')}
             </Text>
           </View>
           <View style={{ flexDirection: 'row' }}>
