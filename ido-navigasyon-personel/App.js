@@ -306,7 +306,7 @@ export default function App() {
 
   let icerik;
 
-  if (tokenYukleniyor || ekran === 'yukleniyor') {
+  if (tokenYukleniyor || (erisimTokeni && ekran === 'yukleniyor')) {
     icerik = (
       <View style={styles.govde}>
         <Text style={styles.etiket}>Yukleniyor...</Text>
