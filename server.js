@@ -198,6 +198,7 @@ io.on('connection', (soket) => {
             gemi: sefer.gemiAdi,
             zaman: new Date().toISOString()
         });
+        sefer.acilDurumAktif = true;
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
@@ -228,6 +229,7 @@ io.on('connection', (soket) => {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
             zaman: new Date().toISOString()
         });
+        sefer.acilDurumAktif = false;
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
@@ -250,12 +252,14 @@ io.on('connection', (soket) => {
         }
         console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, seferId: soket.data.aktifSeferId });
         io.to('sefer:' + soket.data.aktifSeferId).emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: sefer.gemiAdi });
+        sefer.yolcuSayisi = bilgi.sayi;
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 
     soket.on('sefer-sec', (bilgi, geriBildir) => {
         const seferId = Number(bilgi?.sefer_id);
-        if (!Number.isInteger(seferId) || !aktifSeferler.has(seferId)) {
+        const sefer = aktifSeferler.get(seferId);
+        if (!Number.isInteger(seferId) || !sefer) {
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veya aktif olmayan sefer' });
             return;
         }
@@ -264,7 +268,13 @@ io.on('connection', (soket) => {
         }
         soket.data.aktifSeferId = seferId;
         soket.join('sefer:' + seferId);
-        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
+        if (typeof geriBildir === 'function') {
+            geriBildir({
+                tamam: true,
+                acil_durum_aktif: !!sefer.acilDurumAktif,
+                yolcu_sayisi: sefer.yolcuSayisi || 0
+            });
+        }
     });
 
     soket.on('disconnect', () => {

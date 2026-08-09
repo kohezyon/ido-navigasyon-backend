@@ -601,6 +601,32 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         gonderen.disconnect();
     });
 
+    it('sefer-sec basarili oldugunda mevcut acil durum ve yolcu sayisi durumunu doner', async () => {
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const ilkYanit = await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        expect(ilkYanit).toEqual({ tamam: true, acil_durum_aktif: false, yolcu_sayisi: 0 });
+
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const kaptan = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        await new Promise((resolve) => kaptan.on('connect', resolve));
+        await new Promise((resolve) => kaptan.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => kaptan.emit('acil-durum-baslat', {}, resolve));
+        await new Promise((resolve) => kaptan.emit('yolcu-sayisi-guncelle', { sayi: 4 }, resolve));
+
+        const gonderenIki = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderenIki.on('connect', resolve));
+        const ikinciYanit = await new Promise((resolve) => gonderenIki.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        expect(ikinciYanit).toEqual({ tamam: true, acil_durum_aktif: true, yolcu_sayisi: 4 });
+
+        gonderen.disconnect();
+        kaptan.disconnect();
+        gonderenIki.disconnect();
+    });
+
 });
 
 // Bu test kendi describe blogunda: ayni describe icinde art arda cok sayida gercek
