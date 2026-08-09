@@ -6,6 +6,7 @@ import { describe, it, expect, afterAll, afterEach, beforeAll, vi } from 'vitest
 const request = require('supertest');
 const { io: ioClient } = require('socket.io-client');
 const { app, havuz, sunucu } = require('./server.js');
+const { aktifSeferler, seferStateOlustur, konumKontrolVeYayinla } = require('./server.js');
 
 const { sifreHashle } = require('./sifreYardimcisi.js');
 const { yenilemeTokeniOlustur } = require('./jwtYardimcisi.js');
@@ -26,6 +27,53 @@ describe('JWT_GIZLI_ANAHTARI dogrulamasi', () => {
         );
         expect(sonuc.status).not.toBe(0);
         expect(sonuc.stderr).toMatch(/JWT_GIZLI_ANAHTARI tanimli olmali/);
+    });
+});
+
+describe('seferStateOlustur ve konumKontrolVeYayinla - coklu sefer bagimsizligi', () => {
+    afterEach(() => {
+        aktifSeferler.clear();
+        vi.restoreAllMocks();
+    });
+
+    it('seferStateOlustur ilk rota noktasini baslangic konumu, hedefIndex i 1 olarak ayarlar', () => {
+        const state = seferStateOlustur([
+            { ad: 'Baslangic', enlem: 40.0, boylam: 29.0 },
+            { ad: 'Hedef', enlem: 41.0, boylam: 30.0 }
+        ]);
+
+        expect(state.konum).toEqual({ enlem: 40.0, boylam: 29.0 });
+        expect(state.hedefIndex).toBe(1);
+        expect(state.varisBildirimiGonderildi).toBe(false);
+        expect(state.rotaAdlari).toEqual(['Baslangic', 'Hedef']);
+        expect(state.legMesafeleri.length).toBe(2);
+        expect(state.legMesafeleri[0]).toBe(0);
+    });
+
+    it('iki aktif sefer birbirinden bagimsiz ilerler', async () => {
+        vi.spyOn(havuz, 'query').mockResolvedValue({ rows: [] });
+
+        const seferA = seferStateOlustur([
+            { ad: 'A-Baslangic', enlem: 0, boylam: 0 },
+            { ad: 'A-Hedef', enlem: 1, boylam: 0 }
+        ]);
+        const seferB = seferStateOlustur([
+            { ad: 'B-Baslangic', enlem: 10, boylam: 10 },
+            { ad: 'B-Hedef', enlem: 10, boylam: 11 }
+        ]);
+        aktifSeferler.set(1, { ...seferA, gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        aktifSeferler.set(2, { ...seferB, gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' });
+
+        const baslangicA = { ...aktifSeferler.get(1).konum };
+        const baslangicB = { ...aktifSeferler.get(2).konum };
+
+        await konumKontrolVeYayinla();
+
+        expect(aktifSeferler.get(1).konum).not.toEqual(baslangicA);
+        expect(aktifSeferler.get(2).konum).not.toEqual(baslangicB);
+        // A sadece enlem ekseninde, B sadece boylam ekseninde ilerliyor olmali (birbirinden bagimsiz).
+        expect(aktifSeferler.get(1).konum.boylam).toBeCloseTo(baslangicA.boylam, 5);
+        expect(aktifSeferler.get(2).konum.enlem).toBeCloseTo(baslangicB.enlem, 5);
     });
 });
 

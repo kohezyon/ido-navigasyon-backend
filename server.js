@@ -32,65 +32,62 @@ if (!JWT_GIZLI_ANAHTARI) {
     throw new Error('JWT_GIZLI_ANAHTARI tanimli olmali');
 }
 
-let gemiKonumu = {
-    enlem: 40.6500,
-    boylam: 29.2600
-};
-
-const baslangicKonumu = { enlem: gemiKonumu.enlem, boylam: gemiKonumu.boylam };
-
-const rotaNoktalari = [
-    { enlem: 40.7200, boylam: 29.1600 },
-    { enlem: 40.8756, boylam: 29.0917 },
-    { enlem: 41.0100, boylam: 29.0200 }
-];
-
-const rotaAdlari = ['Bozuk Gemi Batigi', 'Heybeliada', 'Istanbul'];
-
-const legMesafeleri = [];
-let oncekiNoktaGecici = baslangicKonumu;
-for (const nokta of rotaNoktalari) {
-    legMesafeleri.push(ikiNoktaArasiMesafe(oncekiNoktaGecici.enlem, oncekiNoktaGecici.boylam, nokta.enlem, nokta.boylam));
-    oncekiNoktaGecici = nokta;
-}
-const toplamRotaMesafesi = legMesafeleri.reduce((a, b) => a + b, 0);
+const aktifSeferler = new Map();
 
 const ADIM_BUYUKLUGU = 0.002;
 const HIZ_METRE_SANIYE = ADIM_BUYUKLUGU * 111320;
 
-let suankiHedefIndex = 0;
-let varisBildirimiGonderildi = false;
+function seferStateOlustur(rotaNoktalariSatirlari) {
+    const ilkNokta = rotaNoktalariSatirlari[0];
+    const legMesafeleri = [];
+    let oncekiNokta = ilkNokta;
+    for (const nokta of rotaNoktalariSatirlari) {
+        legMesafeleri.push(ikiNoktaArasiMesafe(oncekiNokta.enlem, oncekiNokta.boylam, nokta.enlem, nokta.boylam));
+        oncekiNokta = nokta;
+    }
+    const toplamRotaMesafesi = legMesafeleri.reduce((a, b) => a + b, 0);
 
-function sahteGpsGuncelle() {
-    const hedefNokta = rotaNoktalari[suankiHedefIndex];
+    return {
+        konum: { enlem: ilkNokta.enlem, boylam: ilkNokta.boylam },
+        hedefIndex: 1,
+        varisBildirimiGonderildi: false,
+        rotaNoktalari: rotaNoktalariSatirlari.map((n) => ({ enlem: n.enlem, boylam: n.boylam })),
+        rotaAdlari: rotaNoktalariSatirlari.map((n) => n.ad),
+        legMesafeleri,
+        toplamRotaMesafesi
+    };
+}
 
-    const enlemFark = hedefNokta.enlem - gemiKonumu.enlem;
-    const boylamFark = hedefNokta.boylam - gemiKonumu.boylam;
+function sahteGpsGuncelle(sefer, seferId) {
+    const hedefNokta = sefer.rotaNoktalari[sefer.hedefIndex];
+
+    const enlemFark = hedefNokta.enlem - sefer.konum.enlem;
+    const boylamFark = hedefNokta.boylam - sefer.konum.boylam;
     const kalanMesafeDerece = Math.sqrt(enlemFark * enlemFark + boylamFark * boylamFark);
 
     if (kalanMesafeDerece > ADIM_BUYUKLUGU) {
-        gemiKonumu.enlem += (enlemFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
-        gemiKonumu.boylam += (boylamFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
+        sefer.konum.enlem += (enlemFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
+        sefer.konum.boylam += (boylamFark / kalanMesafeDerece) * ADIM_BUYUKLUGU;
     } else {
-        if (suankiHedefIndex < rotaNoktalari.length - 1) {
-            suankiHedefIndex++;
-            console.log('Yeni hedefe geciliyor:', rotaNoktalari[suankiHedefIndex]);
-        } else if (!varisBildirimiGonderildi) {
-            varisBildirimiGonderildi = true;
-            io.emit('varis-bildirimi', {
-                mesaj: 'Istanbul\'a hos geldiniz! Yolculugunuz tamamlandi.'
+        if (sefer.hedefIndex < sefer.rotaNoktalari.length - 1) {
+            sefer.hedefIndex++;
+            console.log('Sefer ' + seferId + ' yeni hedefe geciyor:', sefer.rotaNoktalari[sefer.hedefIndex]);
+        } else if (!sefer.varisBildirimiGonderildi) {
+            sefer.varisBildirimiGonderildi = true;
+            io.to('sefer:' + seferId).emit('varis-bildirimi', {
+                mesaj: sefer.rotaAdlari[sefer.rotaAdlari.length - 1] + '\'a hos geldiniz! Yolculugunuz tamamlandi.'
             });
-            console.log('VARIS BILDIRIMI GONDERILDI');
+            console.log('VARIS BILDIRIMI GONDERILDI. Sefer:', seferId);
         }
     }
 }
 
-function kalanToplamMesafeHesapla() {
-    const hedefNokta = rotaNoktalari[suankiHedefIndex];
-    let kalan = ikiNoktaArasiMesafe(gemiKonumu.enlem, gemiKonumu.boylam, hedefNokta.enlem, hedefNokta.boylam);
+function kalanToplamMesafeHesapla(sefer) {
+    const hedefNokta = sefer.rotaNoktalari[sefer.hedefIndex];
+    let kalan = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, hedefNokta.enlem, hedefNokta.boylam);
 
-    for (let i = suankiHedefIndex + 1; i < rotaNoktalari.length; i++) {
-        kalan += legMesafeleri[i];
+    for (let i = sefer.hedefIndex + 1; i < sefer.rotaNoktalari.length; i++) {
+        kalan += sefer.legMesafeleri[i];
     }
     return kalan;
 }
@@ -101,45 +98,48 @@ function sunucuHatasiYanitla(res, hata, genelMesaj) {
 }
 
 async function konumKontrolVeYayinla() {
-    sahteGpsGuncelle();
+    for (const [seferId, sefer] of aktifSeferler) {
+        sahteGpsGuncelle(sefer, seferId);
 
-    try {
-        const sonuc = await havuz.query(
-            'SELECT ad, tip, enlem, boylam, tetikleme_mesafesi_metre, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari'
-        );
+        try {
+            const sonuc = await havuz.query(
+                'SELECT ad, tip, enlem, boylam, tetikleme_mesafesi_metre, aciklama, video_url, sesli_anlatim_url, videolu_anlatim_url FROM ilgi_noktalari WHERE hat_id IS NULL OR hat_id = $1',
+                [sefer.hatId]
+            );
 
-        const tetiklenenler = [];
+            const tetiklenenler = [];
 
-        for (const nokta of sonuc.rows) {
-            const kontrol = geofenceKontrolEt(gemiKonumu.enlem, gemiKonumu.boylam, nokta);
-            if (kontrol.tetiklendi) {
-                tetiklenenler.push(kontrol);
+            for (const nokta of sonuc.rows) {
+                const kontrol = geofenceKontrolEt(sefer.konum.enlem, sefer.konum.boylam, nokta);
+                if (kontrol.tetiklendi) {
+                    tetiklenenler.push(kontrol);
+                }
             }
+
+            const kalanToplamMesafe = kalanToplamMesafeHesapla(sefer);
+            const ilerlemeYuzdesi = Math.min(100, Math.max(0, ((sefer.toplamRotaMesafesi - kalanToplamMesafe) / sefer.toplamRotaMesafesi) * 100));
+            const toplamKalanDakika = kalanToplamMesafe / HIZ_METRE_SANIYE / 60;
+
+            const hedefNokta = sefer.rotaNoktalari[sefer.hedefIndex];
+            const hedefeMesafe = ikiNoktaArasiMesafe(sefer.konum.enlem, sefer.konum.boylam, hedefNokta.enlem, hedefNokta.boylam);
+            const hedefeKalanDakika = hedefeMesafe / HIZ_METRE_SANIYE / 60;
+
+            io.to('sefer:' + seferId).emit('gemi-konum-guncelleme', {
+                enlem: sefer.konum.enlem,
+                boylam: sefer.konum.boylam,
+                tetiklenen_noktalar: tetiklenenler,
+                suanki_hedef: sefer.rotaAdlari[sefer.hedefIndex],
+                sonraki_duraklar: sefer.rotaAdlari.slice(sefer.hedefIndex + 1),
+                ilerleme_yuzdesi: ilerlemeYuzdesi,
+                toplam_kalan_dakika: toplamKalanDakika,
+                hedefe_kalan_dakika: hedefeKalanDakika
+            });
+
+            console.log(`Sefer ${seferId} konum: ${sefer.konum.enlem.toFixed(4)}, ${sefer.konum.boylam.toFixed(4)} | Ilerleme: %${ilerlemeYuzdesi.toFixed(0)} | Kalan: ${toplamKalanDakika.toFixed(1)} dk`);
+
+        } catch (hata) {
+            console.log('Konum kontrol hatasi (sefer ' + seferId + '):', hata.message);
         }
-
-        const kalanToplamMesafe = kalanToplamMesafeHesapla();
-        const ilerlemeYuzdesi = Math.min(100, Math.max(0, ((toplamRotaMesafesi - kalanToplamMesafe) / toplamRotaMesafesi) * 100));
-        const toplamKalanDakika = kalanToplamMesafe / HIZ_METRE_SANIYE / 60;
-
-        const hedefNokta = rotaNoktalari[suankiHedefIndex];
-        const hedefeMesafe = ikiNoktaArasiMesafe(gemiKonumu.enlem, gemiKonumu.boylam, hedefNokta.enlem, hedefNokta.boylam);
-        const hedefeKalanDakika = hedefeMesafe / HIZ_METRE_SANIYE / 60;
-
-        io.emit('gemi-konum-guncelleme', {
-            enlem: gemiKonumu.enlem,
-            boylam: gemiKonumu.boylam,
-            tetiklenen_noktalar: tetiklenenler,
-            suanki_hedef: rotaAdlari[suankiHedefIndex],
-            sonraki_duraklar: rotaAdlari.slice(suankiHedefIndex + 1),
-            ilerleme_yuzdesi: ilerlemeYuzdesi,
-            toplam_kalan_dakika: toplamKalanDakika,
-            hedefe_kalan_dakika: hedefeKalanDakika
-        });
-
-        console.log(`Konum: ${gemiKonumu.enlem.toFixed(4)}, ${gemiKonumu.boylam.toFixed(4)} | Ilerleme: %${ilerlemeYuzdesi.toFixed(0)} | Kalan: ${toplamKalanDakika.toFixed(1)} dk`);
-
-    } catch (hata) {
-        console.log('Konum kontrol hatasi:', hata.message);
     }
 }
 
@@ -247,11 +247,6 @@ io.on('connection', (soket) => {
     });
 });
 app.post('/reset-gemi', jwtDogrulaMiddleware(tokenDogrula, JWT_GIZLI_ANAHTARI, ['kaptan', 'admin']), (req, res) => {
-    gemiKonumu.enlem = baslangicKonumu.enlem;
-    gemiKonumu.boylam = baslangicKonumu.boylam;
-    suankiHedefIndex = 0;
-    varisBildirimiGonderildi = false;
-    console.log('GEMI SIFIRLANDI. Kullanici:', req.kullanici.kullanici_adi);
     res.json({ tamam: true });
 });
 app.get('/tum-noktalar', async (req, res) => {
@@ -348,4 +343,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, sunucu, havuz, sunucuHatasiYanitla };
+module.exports = { app, sunucu, havuz, sunucuHatasiYanitla, aktifSeferler, seferStateOlustur, konumKontrolVeYayinla };
