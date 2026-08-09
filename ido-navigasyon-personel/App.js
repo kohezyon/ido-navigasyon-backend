@@ -160,9 +160,20 @@ export default function App() {
           return;
         }
         setKonumIzniHatasi(null);
+        // timeInterval sadece Android'de gecerli; iOS distanceInterval kullanir ve
+        // varsayilani (Balanced dogrulukta ~100m) hareketsiz/agir manevra yapan bir
+        // gemide hic guncelleme gelmemesine yol acar. distanceInterval: 0 ile mesafe
+        // filtresini kaldiriyoruz; buna karsilik iOS cok sik tetikledigi icin sunucuya
+        // gonderimi asagidaki 5sn'lik istemci tarafi kisitla dengeliyoruz.
+        // sonEmitZamani, useRef degil: yeniden render'a gerek yok, sadece bu
+        // watchPositionAsync aboneliginin omru boyunca closure'da yasamasi yeterli.
+        const sonEmitZamani = { current: 0 };
         const abonelik = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 5000 },
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 0 },
           (konum) => {
+            const simdi = Date.now();
+            if (simdi - sonEmitZamani.current < 5000) return;
+            sonEmitZamani.current = simdi;
             if (soketRef.current) {
               soketRef.current.emit('konum-guncelle', {
                 enlem: konum.coords.latitude,
@@ -191,6 +202,9 @@ export default function App() {
         konumAboneligiRef.current.remove();
         konumAboneligiRef.current = null;
       }
+      // Baska bir sefere gecildiginde onceki seferin "Konum izni verilmedi"
+      // uyarisi, yeni seferin izin kontrolu surerken ekranda asili kalmasin.
+      setKonumIzniHatasi(null);
     };
   }, [erisimTokeni, seciliSeferId]);
 
