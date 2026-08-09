@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 const { Pool } = require('pg');
 const { geofenceKontrolEt, ikiNoktaArasiMesafe } = require('./geofencing.js');
 const { izinliOrijinListesi, corsOrijinKontrolu, corsMiddleware } = require('./cors.js');
-const { gemiAdiGecerliMi, sayiGecerliMi } = require('./validation.js');
+const { sayiGecerliMi } = require('./validation.js');
 const { sifreDogrula, SAHTE_SIFRE_HASH } = require('./sifreYardimcisi.js');
 const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./jwtYardimcisi.js');
 const { kullaniciAdiylaBul, idIleBul } = require('./personelRepo.js');
@@ -186,15 +186,16 @@ io.on('connection', (soket) => {
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
             return;
         }
-        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
-            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
-            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
+        const sefer = aktifSeferler.get(soket.data.aktifSeferId);
+        if (!sefer) {
+            console.log('SEFER SECILMEMIS ile acil-durum-baslat denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Sefer secilmedi' });
             return;
         }
-        console.log('ACIL DURUM BASLATILDI:', { gemi: bilgi.gemi_adi });
-        io.emit('acil-durum-uyarisi', {
+        console.log('ACIL DURUM BASLATILDI:', { gemi: sefer.gemiAdi, seferId: soket.data.aktifSeferId });
+        io.to('sefer:' + soket.data.aktifSeferId).emit('acil-durum-uyarisi', {
             mesaj: 'ACIL DURUM! Lutfen tahliye talimatlarini takip edin.',
-            gemi: bilgi.gemi_adi,
+            gemi: sefer.gemiAdi,
             zaman: new Date().toISOString()
         });
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
@@ -216,13 +217,14 @@ io.on('connection', (soket) => {
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz rol' });
             return;
         }
-        if (!gemiAdiGecerliMi(bilgi?.gemi_adi)) {
-            console.log('GECERSIZ gemi_adi ile istek. ID:', soket.id);
-            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
+        const sefer = aktifSeferler.get(soket.data.aktifSeferId);
+        if (!sefer) {
+            console.log('SEFER SECILMEMIS ile acil-durum-bitir denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Sefer secilmedi' });
             return;
         }
-        console.log('ACIL DURUM BITIRILDI:', { gemi: bilgi.gemi_adi });
-        io.emit('acil-durum-bitti', {
+        console.log('ACIL DURUM BITIRILDI:', { gemi: sefer.gemiAdi, seferId: soket.data.aktifSeferId });
+        io.to('sefer:' + soket.data.aktifSeferId).emit('acil-durum-bitti', {
             mesaj: 'Acil durum sona erdi. Normal yolculuga devam ediliyor.',
             zaman: new Date().toISOString()
         });
@@ -235,13 +237,33 @@ io.on('connection', (soket) => {
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Yetkisiz' });
             return;
         }
-        if (!sayiGecerliMi(bilgi?.sayi) || !gemiAdiGecerliMi(bilgi?.gemi_adi)) {
+        const sefer = aktifSeferler.get(soket.data.aktifSeferId);
+        if (!sefer) {
+            console.log('SEFER SECILMEMIS ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Sefer secilmedi' });
+            return;
+        }
+        if (!sayiGecerliMi(bilgi?.sayi)) {
             console.log('GECERSIZ veri ile yolcu-sayisi-guncelle denemesi. ID:', soket.id);
             if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veri' });
             return;
         }
-        console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
-        io.emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: bilgi.gemi_adi });
+        console.log('YOLCU SAYISI GUNCELLENDI:', { sayi: bilgi.sayi, seferId: soket.data.aktifSeferId });
+        io.to('sefer:' + soket.data.aktifSeferId).emit('yolcu-sayisi-yayin', { sayi: bilgi.sayi, gemi_adi: sefer.gemiAdi });
+        if (typeof geriBildir === 'function') geriBildir({ tamam: true });
+    });
+
+    soket.on('sefer-sec', (bilgi, geriBildir) => {
+        const seferId = Number(bilgi?.sefer_id);
+        if (!Number.isInteger(seferId) || !aktifSeferler.has(seferId)) {
+            if (typeof geriBildir === 'function') geriBildir({ tamam: false, hata: 'Gecersiz veya aktif olmayan sefer' });
+            return;
+        }
+        if (soket.data.aktifSeferId) {
+            soket.leave('sefer:' + soket.data.aktifSeferId);
+        }
+        soket.data.aktifSeferId = seferId;
+        soket.join('sefer:' + seferId);
         if (typeof geriBildir === 'function') geriBildir({ tamam: true });
     });
 

@@ -512,41 +512,14 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
         await new Promise((resolve) => sunucu.close(resolve));
     });
 
+    afterEach(() => {
+        aktifSeferler.clear();
+    });
+
     it('token gonderilmezse baglanti kurulur (yolcu app icin anonim/dinleyici erisim)', async () => {
         const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
         await new Promise((resolve) => gonderen.on('connect', resolve));
         expect(gonderen.connected).toBe(true);
-        gonderen.disconnect();
-    });
-
-    it('anonim (tokensiz) baglanti kaptan tarafindan baslatilan acil-durum-uyarisini alir', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
-        const kaptan = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        const yolcu = ioClient(`http://localhost:${sunucuPortu}`);
-        await new Promise((resolve) => kaptan.on('connect', resolve));
-        await new Promise((resolve) => yolcu.on('connect', resolve));
-
-        const uyariPromise = new Promise((resolve) => yolcu.on('acil-durum-uyarisi', resolve));
-        kaptan.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, () => {});
-        const uyari = await uyariPromise;
-
-        expect(uyari.gemi).toBe('Test Gemisi');
-        kaptan.disconnect();
-        yolcu.disconnect();
-    });
-
-    it('anonim (tokensiz) baglanti acil-durum-baslat gonderirse Yetkisiz doner', async () => {
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
-        await new Promise((resolve) => gonderen.on('connect', resolve));
-
-        const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
-        });
-
-        expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
         gonderen.disconnect();
     });
 
@@ -562,10 +535,11 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
     });
 
     it('baglanti sirasinda gecerli ama sonradan suresi dolan token ile acil-durum-baslat "Oturum suresi doldu" doner', async () => {
-        // Handshake anda gecerli (henuz suresi dolmamis), ama cok kisa omurlu bir token
+        // Handshake aninda gecerli (henuz suresi dolmamis), ama cok kisa omurlu bir token
         // uretiyoruz; baglanti kurulduktan sonra bekleyip suresinin dolmasini sagliyoruz.
-        // Boylece soket baglantisi acikken token suresinin dolmasi senaryosunu test ediyoruz
-        // (io.use sadece connect aninda calisir, sonraki eventlerde tekrar dogrulama yapmaz).
+        // sefer-sec kimlik dogrulamasi gerektirmedigi icin (bkz. Task 7 tasarimi), suresi
+        // dolmus tokenla da basarili olur; asil kontrol acil-durum-baslat'ta yapilir.
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
         const jwt = require('jsonwebtoken');
         const kisaOmurluToken = jwt.sign(
             { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan', tur: 'erisim' },
@@ -575,54 +549,112 @@ describe('acil-durum-baslat socket yetkilendirmesi', () => {
 
         const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token: kisaOmurluToken } });
         await new Promise((resolve) => gonderen.on('connect', resolve));
+        await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
 
         const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
+            gonderen.emit('acil-durum-baslat', {}, resolve);
         });
 
         expect(yanit).toEqual({ tamam: false, hata: 'Oturum suresi doldu' });
         gonderen.disconnect();
     }, 10000);
 
-    it('personel rolundeki token ile baglanir ama acil-durum-baslat Yetkisiz rol doner', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
+    it('gecersiz/aktif olmayan sefer_id ile sefer-sec basarisiz doner', async () => {
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('sefer-sec', { sefer_id: 999 }, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Gecersiz veya aktif olmayan sefer' });
+        gonderen.disconnect();
+    });
+
+    it('sefer secilmeden acil-durum-baslat gonderilirse "Sefer secilmedi" doner', async () => {
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
         const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
+            gonderen.emit('acil-durum-baslat', {}, resolve);
+        });
+
+        expect(yanit).toEqual({ tamam: false, hata: 'Sefer secilmedi' });
+        gonderen.disconnect();
+    });
+
+    it('personel rolundeki token ile sefer secilir ama acil-durum-baslat Yetkisiz rol doner', async () => {
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const yanit = await new Promise((resolve) => {
+            gonderen.emit('acil-durum-baslat', {}, resolve);
         });
 
         expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz rol' });
         gonderen.disconnect();
     });
 
-    it('kaptan rolundeki token ile acil-durum-uyarisi yayinlanir', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
-        await new Promise((resolve) => dinleyici.on('connect', resolve));
+});
 
-        const uyariPromise = new Promise((resolve) => dinleyici.on('acil-durum-uyarisi', resolve));
+// Bu test kendi describe blogunda: ayni describe icinde art arda cok sayida gercek
+// socket.io-client baglantisi acmak (paylasilan `sunucu` ornegi uzerinde) bu ortamda
+// ara sira flaky davranisa (baglanti/olay zaman asimi) yol acabiliyor. Kendi
+// beforeAll/afterAll sunucu yasam dongusuyle izole ederek sizintiyi azaltiyoruz.
+describe('sefer odasi izolasyonu', () => {
+    let sunucuPortu;
 
-        const yanit = await new Promise((resolve) => {
-            gonderen.emit('acil-durum-baslat', { gemi_adi: 'Test Gemisi' }, resolve);
-        });
-        const uyari = await uyariPromise;
+    beforeAll(async () => {
+        await new Promise((resolve) => sunucu.listen(0, resolve));
+        sunucuPortu = sunucu.address().port;
+    });
+
+    afterAll(async () => {
+        await new Promise((resolve) => sunucu.close(resolve));
+    });
+
+    afterEach(() => {
+        aktifSeferler.clear();
+    });
+
+    it('sefer odasi disindaki dinleyiciye acil-durum-uyarisi sizmaz, oda icindekine ulasir', async () => {
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A1', enlem: 0, boylam: 0 }, { ad: 'A2', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        aktifSeferler.set(2, { ...seferStateOlustur([{ ad: 'B1', enlem: 10, boylam: 10 }, { ad: 'B2', enlem: 11, boylam: 11 }]), gemiId: 2, hatId: 2, gemiAdi: 'Gemi B' });
+
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'kaptan1', rol: 'kaptan' }, process.env.JWT_GIZLI_ANAHTARI);
+        const kaptanA = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const dinleyiciA = ioClient(`http://localhost:${sunucuPortu}`);
+        const dinleyiciB = ioClient(`http://localhost:${sunucuPortu}`);
+
+        await Promise.all([kaptanA, dinleyiciA, dinleyiciB].map((s) => new Promise((r) => s.on('connect', r))));
+        await Promise.all([
+            new Promise((r) => kaptanA.emit('sefer-sec', { sefer_id: 1 }, r)),
+            new Promise((r) => dinleyiciA.emit('sefer-sec', { sefer_id: 1 }, r)),
+            new Promise((r) => dinleyiciB.emit('sefer-sec', { sefer_id: 2 }, r))
+        ]);
+
+        const aAldiPromise = new Promise((resolve) => dinleyiciA.on('acil-durum-uyarisi', resolve));
+        let bAldiMi = false;
+        dinleyiciB.on('acil-durum-uyarisi', () => { bAldiMi = true; });
+
+        const yanit = await new Promise((resolve) => kaptanA.emit('acil-durum-baslat', {}, resolve));
+        const aAldi = await aAldiPromise;
 
         expect(yanit).toEqual({ tamam: true });
-        expect(uyari.gemi).toBe('Test Gemisi');
-        gonderen.disconnect();
-        dinleyici.disconnect();
+        expect(aAldi.gemi).toBe('Gemi A');
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(bAldiMi).toBe(false);
+
+        kaptanA.disconnect();
+        dinleyiciA.disconnect();
+        dinleyiciB.disconnect();
     });
 });
 
@@ -638,24 +670,8 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
         await new Promise((resolve) => sunucu.close(resolve));
     });
 
-    it('gecerli token ile herhangi bir rol yolcu-sayisi-yayin yapabilir', async () => {
-        const token = erisimTokeniOlustur(
-            { id: 1, kullanici_adi: 'personel1', rol: 'personel' },
-            process.env.JWT_GIZLI_ANAHTARI
-        );
-        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
-        await new Promise((resolve) => gonderen.on('connect', resolve));
-        await new Promise((resolve) => dinleyici.on('connect', resolve));
-
-        const yayinPromise = new Promise((resolve) => dinleyici.on('yolcu-sayisi-yayin', resolve));
-
-        gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3, gemi_adi: 'Test Gemisi' }, () => {});
-        const yayin = await yayinPromise;
-
-        expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Test Gemisi' });
-        gonderen.disconnect();
-        dinleyici.disconnect();
+    afterEach(() => {
+        aktifSeferler.clear();
     });
 
     it('anonim (tokensiz) baglanti yolcu-sayisi-guncelle gonderirse Yetkisiz doner', async () => {
@@ -663,11 +679,31 @@ describe('yolcu-sayisi-guncelle yetkilendirmesi', () => {
         await new Promise((resolve) => gonderen.on('connect', resolve));
 
         const yanit = await new Promise((resolve) => {
-            gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3, gemi_adi: 'Test Gemisi' }, resolve);
+            gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3 }, resolve);
         });
 
         expect(yanit).toEqual({ tamam: false, hata: 'Yetkisiz' });
         gonderen.disconnect();
+    });
+
+    it('gecerli token ile sefer secilmis herhangi bir rol yolcu-sayisi-yayin yapabilir, sadece o sefer odasina', async () => {
+        aktifSeferler.set(1, { ...seferStateOlustur([{ ad: 'A', enlem: 0, boylam: 0 }, { ad: 'B', enlem: 1, boylam: 1 }]), gemiId: 1, hatId: 1, gemiAdi: 'Gemi A' });
+        const token = erisimTokeniOlustur({ id: 1, kullanici_adi: 'personel1', rol: 'personel' }, process.env.JWT_GIZLI_ANAHTARI);
+
+        const gonderen = ioClient(`http://localhost:${sunucuPortu}`, { auth: { token } });
+        const dinleyici = ioClient(`http://localhost:${sunucuPortu}`);
+        await new Promise((resolve) => gonderen.on('connect', resolve));
+        await new Promise((resolve) => dinleyici.on('connect', resolve));
+        await new Promise((resolve) => gonderen.emit('sefer-sec', { sefer_id: 1 }, resolve));
+        await new Promise((resolve) => dinleyici.emit('sefer-sec', { sefer_id: 1 }, resolve));
+
+        const yayinPromise = new Promise((resolve) => dinleyici.on('yolcu-sayisi-yayin', resolve));
+        gonderen.emit('yolcu-sayisi-guncelle', { sayi: 3 }, () => {});
+        const yayin = await yayinPromise;
+
+        expect(yayin).toEqual({ sayi: 3, gemi_adi: 'Gemi A' });
+        gonderen.disconnect();
+        dinleyici.disconnect();
     });
 });
 
