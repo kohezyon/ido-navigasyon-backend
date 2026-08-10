@@ -19,7 +19,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
-| 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
+| 5 | Test & CI/CD | Orta | Orta (1 hafta) | 🟡 CI kuruldu, lint/staging ayrı kararlar |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
 
@@ -130,4 +130,8 @@ Faz 2 ve Faz 3, hem otomatik uçtan uca testle hem gerçek cihazda manuel doğru
 
 **Faz 4 tamamlandı** (4/4 alt-proje ele alındı — biri bilinçli erteleme kararıyla).
 
-Sıradaki: **Faz 5** (Test & CI/CD) veya **Faz 6** (Mobil uygulama sağlamlaştırma) — roadmap'te bir sonraki öncelik.
+**Faz 5 / Alt-proje 1 (GitHub Actions CI) tamamlandı (2026-08-10)** (bkz. `2026-08-10-faz5-github-actions-ci-design.md` / `2026-08-10-faz5-github-actions-ci.md`). Roadmap'in orijinal Faz 5 kapsamının çoğu (test framework, geofencing testleri, socket/REST entegrasyon testleri) zaten önceki fazlarda tamamlanmıştı — gerçekte kalan iş sadece CI'ı bağlamaktı. `.github/workflows/test.yml` eklendi (push/PR'da `npm test`, ekstra secret/servis gerekmiyor çünkü test paketi gerçek DB bağlantısı kurmuyor), ilk çalıştırma yeşil sonuçlandı (bkz. GitHub Actions sekmesi).
+
+Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: **Lint (ESLint)** — henüz eklenmedi, ayrı bir karar. **Staging ortamı** — Render hesabı/ödeme kararı gerektiriyor, Faz 4'teki cold-start gibi henüz ele alınmadı.
+
+Sıradaki: **Faz 6** (Mobil uygulama sağlamlaştırma) — roadmap'te bir sonraki öncelik. Faz 5'in kalan alt-konuları (lint, staging) istenirse ayrıca ele alınabilir.
