@@ -20,7 +20,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | 🟡 CI kuruldu, lint/staging ayrı kararlar |
-| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
+| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | 🟡 Alt-proje 1/3 tamamlandı |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
 
 ---
@@ -134,4 +134,6 @@ Faz 2 ve Faz 3, hem otomatik uçtan uca testle hem gerçek cihazda manuel doğru
 
 Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: **Lint (ESLint)** — henüz eklenmedi, ayrı bir karar. **Staging ortamı** — Render hesabı/ödeme kararı gerektiriyor, Faz 4'teki cold-start gibi henüz ele alınmadı.
 
-Sıradaki: **Faz 6** (Mobil uygulama sağlamlaştırma) — roadmap'te bir sonraki öncelik. Faz 5'in kalan alt-konuları (lint, staging) istenirse ayrıca ele alınabilir.
+**Faz 6 / Alt-proje 1 (Leaflet local bundling) tamamlandı (2026-08-10)** (bkz. `2026-08-10-faz6-leaflet-local-bundling-design.md` / `2026-08-10-faz6-leaflet-local-bundling.md`). Roadmap'in dördüncü Faz 6 maddesi (personel app'te token'ı güvenli saklama) zaten yapılmış olduğu tespit edildi (`expo-secure-store` kullanılıyor). Kalan üç madde arasında en yüksek riskli/en düşük değerli olan `App.js`'in yapısal refactor'ü, somut fayda sağlayan iki işten (Leaflet bundling, offline davranış) sonraya bırakıldı — spekülatif refactor yerine ihtiyaç doğduğunda ele alınacak. Leaflet kütüphanesi artık CDN yerine local vendor edilmiş kaynaktan yükleniyor (döşemeler hariç), Metro bundler sağlık kontrolü başarılı; gerçek cihazda görsel doğrulama ayrı bir manuel adım olarak bekliyor.
+
+Sıradaki: **Faz 6 / Alt-proje 2** (offline/zayıf bağlantı davranışı) veya kullanıcı önceliğine göre başka bir konu.
