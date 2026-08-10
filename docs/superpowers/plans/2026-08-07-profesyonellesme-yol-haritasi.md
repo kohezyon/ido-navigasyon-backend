@@ -19,7 +19,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
-| 5 | Test & CI/CD | Orta | Orta (1 hafta) | 🟡 CI kuruldu, lint/staging ayrı kararlar |
+| 5 | Test & CI/CD | Orta | Orta (1 hafta) | ✅ Tamamlandı (staging hariç — kullanıcı kararı bekliyor) |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı (2/2 somut alt-proje; yapısal refactor bilinçli olarak ertelendi) |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | ✅ Faz 4'te ele alındı (bkz. not) |
 
@@ -144,4 +144,8 @@ Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: 
 
 **Faz 7 gereksiz hale geldi (2026-08-10)** — kapsamının tamamı (SLA'lı hosting/cold-start kararı, DB yedekleme stratejisi, deployment dokümantasyonu) zaten Faz 4'te ele alındı. Ayrıca bir çalışma gerektirmiyor.
 
-Sıradaki: **Faz 5'in kalan alt-konusu — Lint (ESLint)**. Staging ortamı (Faz 5) ve hosting/cold-start (Faz 4) kullanıcının Render hesabı/ödeme kararı gerektirdiği için hâlâ bekliyor.
+**Faz 5 / Lint (ESLint) tamamlandı (2026-08-10)** — backend'e flat-config ESLint eklendi (`eslint.config.js`), 2 gerçek uyarı (kullanılmayan `catch` değişkeni, Express hata-middleware'inin zorunlu ama kullanılmayan `next` parametresi için açıklamalı disable) düzeltildi, `npm run lint` temiz. Mobil app'ler (JSX/React Native) kapsam dışı bırakıldı — ayrı bir konfigürasyon kararı gerektiriyor, bu oturumda ele alınmadı. CI'a eklenmedi (kullanıcı daha önce "sadece test çalıştır" kararı vermişti).
+
+Faz 5'in tek kalan konusu **staging ortamı** — Render hesabı/ödeme kararı gerektiriyor, Faz 4'teki cold-start gibi kullanıcı kararı bekliyor.
+
+Sıradaki: Roadmap'teki 7 fazın tamamı ele alındı (Faz 5 staging ve Faz 4 hosting/cold-start hariç — ikisi de kullanıcı kararı bekliyor). Yeni bir öncelik belirlenmesi gerekiyor.
