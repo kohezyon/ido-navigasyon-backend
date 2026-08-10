@@ -522,6 +522,9 @@ app.post('/geri-bildirim', (req, res) => {
     res.json({ tamam: true });
 });
 
+// Express, hata-yakalayan middleware'i 4 parametreli imzasindan (err, req, res, next)
+// tanir; 'next' kullanilmasa da kaldirilamaz.
+// eslint-disable-next-line no-unused-vars
 app.use((hata, req, res, next) => {
     console.error('Istek hatasi:', hata.message);
     res.status(hata.status || 500).json({ hata: 'Istek islenemedi' });

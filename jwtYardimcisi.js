@@ -14,7 +14,7 @@ function yenilemeTokeniOlustur(payload, gizliAnahtar) {
 function tokenDogrula(token, gizliAnahtar) {
     try {
         return jwt.verify(token, gizliAnahtar);
-    } catch (hata) {
+    } catch {
         return null;
     }
 }
