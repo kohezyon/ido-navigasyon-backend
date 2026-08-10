@@ -48,3 +48,5 @@ Küçük bir eksik: `sefer-sec` ekranındaki `aktifSeferler` listesi sadece giri
 ## Kapsam dışı
 
 Render cold-start/barındırma kararı, DB yedekleme stratejisi, deployment/runbook dokümantasyonu — roadmap'te Faz 4'ün ayrı, bağımsız alt-konuları olarak kalıyor; bu spec sadece restart-kurtarma sorununu kapsıyor.
+
+Bu tasarım tek-instance varsayımına dayanıyor: `yariBirakilmisSeferleriKapat` yalnızca tek bir backend instance'ının, yalnızca boot anında çalıştığı varsayımı altında güvenli (bkz. `seferRepo.js` içindeki fonksiyon yorumu). Çoklu-instance / yatay ölçekleme senaryosu (birden fazla backend instance'ı, zero-downtime deploy) bu spec'in kapsamı dışında; o senaryoya geçilirse sorgunun instance-scoped hale getirilmesi ayrı bir iş olarak ele alınmalı.

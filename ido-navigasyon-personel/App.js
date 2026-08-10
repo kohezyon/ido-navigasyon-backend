@@ -98,9 +98,10 @@ export default function App() {
         setHatlar(hatListesi);
       })
       .catch(() => {
-        setAktifSeferler([]);
-        setGemiler([]);
-        setHatlar([]);
+        // Ilk yuklemede state zaten bos, bu yuzden burada sifirlamaya gerek yok.
+        // Bu fonksiyon artik "sefer-sec" basarisizligi ve "sefer-bitti" durumlarinda
+        // da cagriliyor; gecici bir ag hatasinda o ana kadar dolu olan listeyi silmek
+        // yerine sessizce basarisiz olup mevcut listeyi ekranda birakiyoruz.
       });
   }
 
@@ -296,6 +297,7 @@ export default function App() {
             }
             setSeciliSeferId(null);
             setEkran('sefer-sec');
+            aktifSeferListesiniYenile();
           } catch {
             Alert.alert('Hata', 'Sunucuya ulasilamadi.');
           }

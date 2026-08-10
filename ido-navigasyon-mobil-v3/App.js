@@ -83,12 +83,15 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    fetch(SUNUCU_ADRESI + '/seferler/aktif')
+  function aktifSeferListesiniYenile() {
+    return fetch(SUNUCU_ADRESI + '/seferler/aktif')
       .then((yanit) => yanit.json())
       .then((veri) => setAktifSeferler(veri))
-      .catch(() => setAktifSeferler([]))
-      .finally(() => setSeferlerYukleniyor(false));
+      .catch(() => setAktifSeferler([]));
+  }
+
+  useEffect(() => {
+    aktifSeferListesiniYenile().finally(() => setSeferlerYukleniyor(false));
   }, []);
 
   function tanitimiKapat() {
@@ -163,7 +166,9 @@ export default function App() {
       setBaglantiDurumu('Bagli');
       soket.emit('sefer-sec', { sefer_id: seciliSeferId }, (yanit) => {
         if (!yanit || !yanit.tamam) {
+          Alert.alert('Sefer Sona Erdi', 'Bu sefer artik aktif degil, lutfen listeden tekrar secin.');
           setSeciliSeferId(null);
+          aktifSeferListesiniYenile();
           return;
         }
         setAcilDurum(!!yanit.acil_durum_aktif);

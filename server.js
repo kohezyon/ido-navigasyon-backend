@@ -27,7 +27,8 @@ const io = new Server(sunucu, {
 
 const havuz = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: true }
+    ssl: { rejectUnauthorized: true },
+    connectionTimeoutMillis: 5000
 });
 const HAVA_DURUMU_API_ANAHTARI = process.env.HAVA_DURUMU_API_ANAHTARI;
 const JWT_GIZLI_ANAHTARI = process.env.JWT_GIZLI_ANAHTARI;
