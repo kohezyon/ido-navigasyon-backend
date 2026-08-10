@@ -21,7 +21,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | 🟡 CI kuruldu, lint/staging ayrı kararlar |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı (2/2 somut alt-proje; yapısal refactor bilinçli olarak ertelendi) |
-| 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
+| 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | ✅ Faz 4'te ele alındı (bkz. not) |
 
 ---
 
@@ -142,4 +142,6 @@ Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: 
 
 **Faz 6 tamamlandı.**
 
-Sıradaki: Kullanıcı önceliğine göre — **Faz 5'in kalan alt-konuları** (lint, staging ortamı) veya **Faz 7** (Prodüksiyon Altyapısı & Dokümantasyon).
+**Faz 7 gereksiz hale geldi (2026-08-10)** — kapsamının tamamı (SLA'lı hosting/cold-start kararı, DB yedekleme stratejisi, deployment dokümantasyonu) zaten Faz 4'te ele alındı. Ayrıca bir çalışma gerektirmiyor.
+
+Sıradaki: **Faz 5'in kalan alt-konusu — Lint (ESLint)**. Staging ortamı (Faz 5) ve hosting/cold-start (Faz 4) kullanıcının Render hesabı/ödeme kararı gerektirdiği için hâlâ bekliyor.
