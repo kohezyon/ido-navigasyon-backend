@@ -84,7 +84,19 @@ Sunucu her başladığında (`server.js`, `require.main === module` bloğu), `su
 - `DATABASE_URL`'i kontrol edin (Render panelinden **External** adresi kopyaladığınızdan emin olun, Internal değil — yerelden/Render dışından Internal adrese erişilemez).
 - `Pool` 5 saniye (`connectionTimeoutMillis`) sonra bağlantı denemesinden vazgeçip `process.exit(1)` ile kapanır — sunucu loglarında bağlantı hatası mesajını arayın.
 
-## Kapsam dışı (Faz 4'ün henüz ele alınmamış alt-konuları)
+## DB yedekleme stratejisi (2026-08-10 itibarıyla)
 
-- **Render cold-start:** Free-tier planlar belirli bir süre trafik almazsa uykuya dalar, ilk istek gecikmeli yanıtlanır. Ücretli bir plana geçiş kararı gerektirir — bu doküman kapsamında değil.
-- **DB yedekleme stratejisi:** Şu an otomatik bir yedekleme süreci belgelenmemiş. Render'ın yönetilen Postgres'i kullanılıyorsa Render'ın kendi otomatik yedekleme özelliklerinin (plana göre değişir) etkin olup olmadığı panelden doğrulanmalı.
+Veritabanı Render'ın **ücretsiz** Postgres planında — bu planın 30 gün sonra veritabanını **kalıcı olarak sildiği** bilinmeli (yalnızca yedeksiz değil, tamamen kayboluyor). Bunu ele almak için:
+
+- `scripts/db-yedek-al.js`: tüm tabloların içeriğini `db/backups/yedek-<zaman>.json` olarak dışa aktarır (90 günden eski yedekleri otomatik siler). Elle çalıştırılabilir: `node scripts/db-yedek-al.js`.
+- Bilgisayarda haftalık (her Pazar 09:00) bu betiği otomatik çalıştıran bir Windows Task Scheduler görevi kurulu (`IdoNavigasyonDbYedek`). Kimlik bilgileri hiçbir zaman yerel makineden dışarı çıkmıyor.
+- `db/backups/` `.gitignore`'da — yedekler asla git'e/GitHub'a gitmiyor (içinde şifre hash'leri var).
+- 30 günlük silinme sınırı yaklaşınca uyarması için bir defalık bir hatırlatıcı (claude.ai routine, 2026-08-24) kuruldu. Bu tarihte hâlâ ücretsiz plandaysanız: Render panelinden veritabanının "Created" tarihini kontrol edin, sınıra yakınsa en güncel `db/backups/` yedeğini yeni bir ücretsiz Postgres'e aktarıp `DATABASE_URL`'i güncelleyin (ya da bu noktada ücretli plana geçmeyi tekrar değerlendirin).
+
+**Kalıcı çözüm değil, bir idare:** Bu, düzenli manuel/otomatik göç döngüsü gerektiren en düşük maliyetli ama en yüksek operasyonel yük seçeneği olarak bilinçli şekilde tercih edildi (alternatifi: ücretli plan veya 30-gün-silme politikası olmayan başka bir sağlayıcı).
+
+## Render cold-start (bilinçli olarak ele alınmadı, 2026-08-10)
+
+Free-tier web servisi 15 dakika trafik almazsa uykuya dalar, sonraki istek ~30-50 saniye gecikmeli yanıtlanır. Bu, bir kullanıcının uygulamayı ilk açtığı anda kötü bir deneyime yol açabilir.
+
+Değerlendirilen seçenekler: (a) ücretli plana geçmek (gecikmeyi tamamen ortadan kaldırır, aylık maliyet), (b) ücretsiz kalıp dışarıdan periyodik ping ile uyanık tutmak (sıfır maliyet, garanti değil). **Karar: şimdilik olduğu gibi bırakıldı** — bilinen, kabul edilmiş bir sınır olarak burada belgeleniyor. İleride tekrar değerlendirilebilir.

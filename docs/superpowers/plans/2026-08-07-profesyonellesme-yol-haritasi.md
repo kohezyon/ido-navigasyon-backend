@@ -18,7 +18,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
-| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | 🟡 Alt-proje 2/4 tamamlandı |
+| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
@@ -124,4 +124,10 @@ Faz 2 ve Faz 3, hem otomatik uçtan uca testle hem gerçek cihazda manuel doğru
 
 **Faz 4 / Alt-proje 2 (deployment/runbook dokümantasyonu) tamamlandı (2026-08-10)** (bkz. `docs/DEPLOYMENT.md`) — ortam değişkenleri referansı, şema uygulama adımları, personel hesabı oluşturma, başlangıç kurtarma davranışının operasyonel görünürlüğü (hangi log satırının izleneceği, tek-instance varsayımının sınırı) ve sık karşılaşılan durumlar belgelendi.
 
-Sıradaki: **Faz 4'ün kalan alt-projeleri** — Render cold-start/barındırma kararı (ücretli plan gerektirir, kullanıcı kararı) ve DB yedekleme stratejisi (Render panel ayarı, kullanıcı erişimi gerektirir) — ikisi de bu oturumda tek başına ilerletilemeyecek, kullanıcı katılımı gereken konular.
+**Faz 4 / Alt-proje 3 (DB yedekleme) tamamlandı (2026-08-10)** — Render'ın ücretsiz Postgres planının 30 gün sonra veritabanını kalıcı sildiği tespit edildi (kritik risk). Anında manuel yedek alındı, `scripts/db-yedek-al.js` yazıldı, bilgisayarda haftalık otomatik yerel yedek için Windows Task Scheduler görevi kuruldu, 30 günlük sınır için 2026-08-24'te tetiklenecek bir hatırlatıcı (claude.ai routine) oluşturuldu. Detaylar `docs/DEPLOYMENT.md`'de.
+
+**Faz 4 / Alt-proje 4 (Render cold-start) bilinçli olarak ertelendi (2026-08-10)** — kullanıcı, ücretli plana geçmek veya dışarıdan ping ile uyanık tutmak yerine mevcut ücretsiz plandaki gecikmeyi şimdilik kabul etmeyi tercih etti. Bilinen, belgelenmiş bir sınır olarak `docs/DEPLOYMENT.md`'de kayıtlı; ileride tekrar değerlendirilebilir.
+
+**Faz 4 tamamlandı** (4/4 alt-proje ele alındı — biri bilinçli erteleme kararıyla).
+
+Sıradaki: **Faz 5** (Test & CI/CD) veya **Faz 6** (Mobil uygulama sağlamlaştırma) — roadmap'te bir sonraki öncelik.
