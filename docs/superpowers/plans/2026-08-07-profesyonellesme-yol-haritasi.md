@@ -18,7 +18,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
 | 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı |
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
-| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
+| 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | 🟡 Alt-proje 1/4 tamamlandı |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
@@ -120,4 +120,6 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 Faz 2 ve Faz 3, hem otomatik uçtan uca testle hem gerçek cihazda manuel doğrulamayla tamamlandı.
 
-Sıradaki: **Faz 4** (güvenilirlik & operasyon altyapısı).
+**Faz 4 / Alt-proje 1 (sefer restart-kurtarma) tamamlandı (2026-08-10)** (bkz. `2026-08-10-faz4-sefer-restart-kurtarma-design.md` / `2026-08-10-faz4-sefer-restart-kurtarma.md`, `main`'e merge edildi, 115/115 test yeşil). Backend her başladığında, DB'de `bitis_zamani IS NULL` kalmış (bellek-içi `aktifSeferler`'den kaybolmuş) seferleri otomatik kapatarak gemilerin kalıcı kilitlenmesini önlüyor (`yariBirakilmisSeferleriKapat`, `sunucu.listen()`'dan önce çalışır, DB hatasında fail-fast). Hem crew app (`ido-navigasyon-personel`) hem yolcu app (`ido-navigasyon-mobil-v3`), bu senaryoda sefer listesini tazeleyip kullanıcıyı düzgün bir mesajla sefer-seçim ekranına döndürüyor. Final whole-branch review'da bulunan 2 Important bulgu (yolcu app'in aynı senaryoda tazelenmeyen listesi; `yariBirakilmisSeferleriKapat`'ın yazılı olmayan tek-instance varsayımı — artık kod yorumu ve tasarım dokümanında belgelendi) ve 4 Minor bulgu düzeltildi/değerlendirildi.
+
+Sıradaki: **Faz 4'ün kalan alt-projeleri** — Render cold-start/barındırma kararı, DB yedekleme stratejisi, deployment/runbook dokümantasyonu (birbirinden bağımsız, ayrı ayrı ele alınacak).
