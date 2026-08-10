@@ -12,7 +12,7 @@ const { erisimTokeniOlustur, yenilemeTokeniOlustur, tokenDogrula } = require('./
 const { kullaniciAdiylaBul, idIleBul } = require('./personelRepo.js');
 const { tumGemileriListele, gemiGetir } = require('./gemilerRepo.js');
 const { tumHatlariListele, rotaNoktalariGetir } = require('./hatlarRepo.js');
-const { seferOlustur, seferBitir, seferlerAktifListele } = require('./seferRepo.js');
+const { seferOlustur, seferBitir, seferlerAktifListele, yariBirakilmisSeferleriKapat } = require('./seferRepo.js');
 const { jwtDogrulaMiddleware } = require('./restAuth.js');
 
 const app = express();
@@ -529,8 +529,24 @@ app.use((hata, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
-    sunucu.listen(PORT, () => {
-        console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
+    (async () => {
+        // Sunucu yeniden baslarsa aktifSeferler (bellek-ici) bosalir ama DB'deki
+        // bitis_zamani IS NULL kayitlar oyle kalir; bu da o geminin partial unique
+        // index yuzunden yeni sefer baslatamamasina (sessiz kilitlenme) yol acar.
+        // Hicbir istemci baglanamadan once bu kayitlari kapatip gemiyi serbest birakiyoruz.
+        const kapatilanSeferler = await yariBirakilmisSeferleriKapat(havuz);
+        if (kapatilanSeferler.length > 0) {
+            console.log(
+                'Baslangicta yari birakilmis sefer(ler) kapatildi:',
+                kapatilanSeferler.map((s) => `sefer ${s.id} (gemi ${s.gemi_id})`).join(', ')
+            );
+        }
+        sunucu.listen(PORT, () => {
+            console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
+        });
+    })().catch((hata) => {
+        console.error('Baslangic kurtarma hatasi, sunucu baslatilamadi:', hata.message);
+        process.exit(1);
     });
 }
 
