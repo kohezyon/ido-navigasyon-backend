@@ -148,4 +148,6 @@ Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: 
 
 Faz 5'in tek kalan konusu **staging ortamı** — Render hesabı/ödeme kararı gerektiriyor, Faz 4'teki cold-start gibi kullanıcı kararı bekliyor.
 
-Sıradaki: Roadmap'teki 7 fazın tamamı ele alındı (Faz 5 staging ve Faz 4 hosting/cold-start hariç — ikisi de kullanıcı kararı bekliyor). Yeni bir öncelik belirlenmesi gerekiyor.
+**Faz 6'nın gerçek cihaz doğrulaması tamamlandı (2026-08-10).** Yolcu app'i (`ido-navigasyon-mobil-v3`) gerçek bir telefonda Expo Go üzerinden test edildi: harita local Leaflet kaynağından doğru açıldı, simüle edilmiş kaptan GPS akışıyla gemi ikonu haritada gerçek zamanlı hareket etti, uçak modu açılınca "Bağlantı Yok" göstergesi doğru çıktı, gemi son bilinen konumda donuk kaldı (çökmedi/boşalmadı), bağlantı geri gelince akış kaldığı yerden devam etti. Faz 2/3/4/5/6'nın tamamı artık hem otomatik testle hem gerçek cihazda doğrulanmış durumda.
+
+Sıradaki: Roadmap'teki 7 fazın tamamı ele alındı ve doğrulandı (Faz 5 staging ve Faz 4 hosting/cold-start hariç — ikisi de kullanıcının Render hesabı/ödeme kararını bekliyor). Yeni bir öncelik belirlenmesi gerekiyor.
