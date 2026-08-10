@@ -16,8 +16,8 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 |---|---|---|---|---|
 | 0 | Acil güvenlik yaması | Kritik — hemen | Küçük (1-2 gün) | ✅ Tamamlandı |
 | 1 | Gerçek kimlik doğrulama & yetkilendirme | Kritik | Orta (1 hafta) | ✅ Tamamlandı |
-| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | 🟡 Kod tamamlandı, manuel doğrulama bekliyor |
-| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | 🟡 Kod tamamlandı, manuel doğrulama bekliyor |
+| 2 | Çoklu gemi/hat veri modeli | Yüksek | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı |
+| 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | - |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | - |
 | 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | - |
@@ -110,12 +110,14 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 
 **Güncelleme (2026-08-10):** `db/gemiler_hatlar_seferler.sql` ve seed dosyası artık gerçek (Render) production veritabanına uygulandı. Sefer başlat/seç/bitir akışı, bu veritabanına bağlı yerel backend'e karşı otomatik bir uçtan uca test scripti ile doğrulandı (login → `/sefer/baslat` → `sefer-sec` → çoklu `konum-guncelle` → `/sefer/bitir` → tekrar `/sefer/bitir` ile double-bitir guard'ının 404 döndüğü doğrulandı; 19/19 kontrol geçti).
 
-**Bekleyen manuel adım:** Bu test bir gerçek Expo cihazı/emülatörü kullanmadı, sadece socket.io-client ile sunucu tarafını sınadı. Sefer seçim/başlatma ekranlarının gerçek bir telefonda Expo Go üzerinden dokunmatik/UX olarak çalıştığı hâlâ bir insan operatör tarafından doğrulanmalı. Bu doğrulanmadan Faz 2 "✅ Tamamlandı" olarak işaretlenmeyecek.
+**Faz 2 tamamlandı (2026-08-10):** Gerçek bir telefonda Expo Go üzerinden `kaptan1` hesabıyla giriş yapıldı, sefer başlatıldı/seçildi, yolcu sayısı güncellendi ve acil durum başlat/bitir denendi — hepsi backend loglarında doğru şekilde görüldü (gerçek production DB'ye karşı).
 
 **Faz 3 kod tarafı tamamlandı, "tamamlandı" olarak işaretlenmedi** (bkz. `2026-08-09-faz3-gercek-gps-entegrasyonu-design.md` / `2026-08-09-faz3-gercek-gps-entegrasyonu.md`, `main`'e merge edildi, 113/113 test yeşil, 20/20 çalıştırmada flaky değil). Seçenek A (kaptan telefonundan periyodik GPS) uygulandı: `konum-guncelle` socket event'i, sahte GPS simülasyonunun kaldırılması, gerçek hıza göre ETA hesaplaması, personel app'te `expo-location` ile 5sn'de bir (sadece ön planda) konum gönderimi. Final whole-branch review'da bulunan 1 Critical bulgu (varış-eşiği algoritması gerçek rotada sonsuza kadar takılabiliyordu — "yetişme" mantığıyla düzeltildi) ve 3 Important bulgu (test flakiness'inin gerçek kök nedeni — connect event race — bulunup düzeltildi; sefer-sec artık mevcut konumu da dönüyor; iOS'ta 5sn aralığın çalışmaması) düzeltildi ve doğrulandı.
 
 **Güncelleme (2026-08-10):** `konum-guncelle` event'inin gerçek (Render) production veritabanına bağlı yerel backend'e karşı uçtan uca çalıştığı otomatik bir test scriptiyle doğrulandı: rota boyunca ilerleyen konum güncellemeleri doğru şekilde yayınlandı (`gemi-konum-guncelleme`), hedef geçişleri ve ilerleme yüzdesi/ETA hesaplaması doğru çalıştı, son noktaya varışta `varis-bildirimi` tetiklendi, geçersiz konum ve yetkisiz (token'sız) `konum-guncelle` denemeleri doğru şekilde reddedildi.
 
-**Bekleyen manuel adım:** Bu test gerçek telefon donanımı kullanmadı (socket.io-client ile simüle edilmiş GPS koordinatları gönderildi). Gerçek bir cihazda GPS izin isteği ekranının çıkması, izin verildiğinde/reddedildiğinde uygulamanın doğru davranması, ve iki platformda da (iOS/Android) fiilen ~5sn'lik gönderim sıklığının tutturulması hâlâ bir insan operatör tarafından gerçek cihazda manuel test edilmeli.
+**Faz 3 tamamlandı (2026-08-10):** Gerçek bir telefonda Expo Go üzerinden GPS izni verildi, `konum-guncelle` event'i gerçek koordinatlarla (Ankara, `39.9392, 32.8557`) backend'e ulaştı ve gerçek production DB'ye bağlı sunucu bunu doğru işleyip yayınladı. Fiziksel cihaz + gerçek DB uçtan uca doğrulanmış oldu.
 
-Sıradaki: **Faz 4** (güvenilirlik & operasyon altyapısı) — Faz 2 ve Faz 3'ün bekleyen manuel doğrulamaları tamamlandıktan sonra ele alınması önerilir.
+Faz 2 ve Faz 3, hem otomatik uçtan uca testle hem gerçek cihazda manuel doğrulamayla tamamlandı.
+
+Sıradaki: **Faz 4** (güvenilirlik & operasyon altyapısı).
