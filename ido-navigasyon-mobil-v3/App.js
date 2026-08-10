@@ -6,6 +6,9 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const leafletJs = require('./assets/leaflet/leafletJs');
+const leafletCss = require('./assets/leaflet/leafletCss');
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -299,7 +302,7 @@ export default function App() {
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <style>${leafletCss}</style>
       <style>
         body { margin: 0; padding: 0; }
         #harita { width: 100vw; height: 100vh; background: ${karanlikMod ? '#0B1520' : '#E5F0F8'}; }
@@ -310,7 +313,7 @@ export default function App() {
     </head>
     <body>
       <div id="harita"></div>
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <script>${leafletJs}</script>
       <script>
         const map = L.map('harita', { zoomControl: false, attributionControl: false }).setView([40.75, 29.15], 10);
 
