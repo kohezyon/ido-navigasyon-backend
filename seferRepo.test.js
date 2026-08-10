@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-const { seferOlustur, seferBitir, seferlerAktifListele } = require('./seferRepo.js');
+const { seferOlustur, seferBitir, seferlerAktifListele, yariBirakilmisSeferleriKapat } = require('./seferRepo.js');
 
 describe('seferOlustur', () => {
     it('dogru SQL ve parametrelerle INSERT calistirir, olusan satiri doner', async () => {
@@ -57,5 +57,34 @@ describe('seferlerAktifListele', () => {
         expect(sahteHavuz.query).toHaveBeenCalledTimes(1);
         expect(sahteHavuz.query.mock.calls[0][0]).toMatch(/WHERE s\.bitis_zamani IS NULL/);
         expect(sonuc).toEqual([{ sefer_id: 42, gemi_adi: 'Yalova Feribotu 1', hat_adi: 'Yalova - Istanbul', baslangic_zamani: '2026-08-07T10:00:00.000Z' }]);
+    });
+});
+
+describe('yariBirakilmisSeferleriKapat', () => {
+    it('bitis_zamani NULL olan seferleri kapatir, kapatilan id ve gemi_id listesini doner', async () => {
+        const sahteHavuz = {
+            query: vi.fn().mockResolvedValue({
+                rows: [
+                    { id: 5, gemi_id: 2 },
+                    { id: 7, gemi_id: 3 }
+                ]
+            })
+        };
+        const sonuc = await yariBirakilmisSeferleriKapat(sahteHavuz);
+
+        expect(sahteHavuz.query).toHaveBeenCalledWith(
+            'UPDATE seferler SET bitis_zamani = now() WHERE bitis_zamani IS NULL RETURNING id, gemi_id'
+        );
+        expect(sonuc).toEqual([
+            { id: 5, gemi_id: 2 },
+            { id: 7, gemi_id: 3 }
+        ]);
+    });
+
+    it('kapatilacak sefer yoksa bos dizi doner', async () => {
+        const sahteHavuz = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+        const sonuc = await yariBirakilmisSeferleriKapat(sahteHavuz);
+
+        expect(sonuc).toEqual([]);
     });
 });

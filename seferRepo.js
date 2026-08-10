@@ -26,4 +26,11 @@ async function seferlerAktifListele(havuz) {
     return sonuc.rows;
 }
 
-module.exports = { seferOlustur, seferBitir, seferlerAktifListele };
+async function yariBirakilmisSeferleriKapat(havuz) {
+    const sonuc = await havuz.query(
+        'UPDATE seferler SET bitis_zamani = now() WHERE bitis_zamani IS NULL RETURNING id, gemi_id'
+    );
+    return sonuc.rows;
+}
+
+module.exports = { seferOlustur, seferBitir, seferlerAktifListele, yariBirakilmisSeferleriKapat };
