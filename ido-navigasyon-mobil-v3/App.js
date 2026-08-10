@@ -61,6 +61,8 @@ export default function App() {
   const [aktifSeferler, setAktifSeferler] = useState([]);
   const [seciliSeferId, setSeciliSeferId] = useState(null);
   const [seferlerYukleniyor, setSeferlerYukleniyor] = useState(true);
+  const [listeUyarisi, setListeUyarisi] = useState(null);
+  const [sonBilinenKonumMu, setSonBilinenKonumMu] = useState(false);
 
   const webViewRef = useRef(null);
   const rotaGecmisiRef = useRef([]);
@@ -89,8 +91,22 @@ export default function App() {
   function aktifSeferListesiniYenile() {
     return fetch(SUNUCU_ADRESI + '/seferler/aktif')
       .then((yanit) => yanit.json())
-      .then((veri) => setAktifSeferler(veri))
-      .catch(() => setAktifSeferler([]));
+      .then((veri) => {
+        setAktifSeferler(veri);
+        setListeUyarisi(null);
+        AsyncStorage.setItem('son_aktif_seferler', JSON.stringify(veri));
+      })
+      .catch(() => {
+        return AsyncStorage.getItem('son_aktif_seferler').then((kayitli) => {
+          if (kayitli) {
+            setAktifSeferler(JSON.parse(kayitli));
+            setListeUyarisi('Baglanti kurulamadi, en son bilinen liste gosteriliyor.');
+          } else {
+            setAktifSeferler([]);
+            setListeUyarisi('Baglantiya ulasilamadi, lutfen tekrar deneyin.');
+          }
+        });
+      });
   }
 
   useEffect(() => {
@@ -145,6 +161,18 @@ export default function App() {
   useEffect(() => {
     if (!seciliSeferId) return;
 
+    AsyncStorage.getItem('son_konum_' + seciliSeferId).then((kayitli) => {
+      if (!kayitli) return;
+      const veri = JSON.parse(kayitli);
+      setKonum(veri);
+      setSuankiHedef(veri.suanki_hedef || '');
+      setSonrakiDuraklar(veri.sonraki_duraklar || []);
+      setIlerlemeYuzdesi(veri.ilerleme_yuzdesi || 0);
+      setToplamKalanDakika(veri.toplam_kalan_dakika);
+      setHedefeKalanDakika(veri.hedefe_kalan_dakika);
+      setSonBilinenKonumMu(true);
+    });
+
     Notifications.requestPermissionsAsync();
 
     fetch(SUNUCU_ADRESI + '/tum-noktalar?sefer_id=' + seciliSeferId)
@@ -194,6 +222,8 @@ export default function App() {
       setIlerlemeYuzdesi(veri.ilerleme_yuzdesi || 0);
       setToplamKalanDakika(veri.toplam_kalan_dakika);
       setHedefeKalanDakika(veri.hedefe_kalan_dakika);
+      setSonBilinenKonumMu(false);
+      AsyncStorage.setItem('son_konum_' + seciliSeferId, JSON.stringify(veri));
 
       if (veri.tetiklenen_noktalar.length > 0) {
         const isimler = veri.tetiklenen_noktalar
@@ -378,6 +408,9 @@ export default function App() {
         <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
         <View style={{ flex: 1, padding: 24, paddingTop: 80 }}>
           <Text style={{ color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 20 }}>Hangi gemiyi takip ediyorsun?</Text>
+          {listeUyarisi && (
+            <Text style={{ color: '#F2B705', fontSize: 13, marginBottom: 12 }}>{listeUyarisi}</Text>
+          )}
           {aktifSeferler.length === 0 ? (
             <Text style={{ color: '#CDE3F0', fontSize: 15 }}>Su an aktif bir sefer yok.</Text>
           ) : (
@@ -429,6 +462,9 @@ export default function App() {
           Yalova %{ilerlemeYuzdesi.toFixed(0)} Istanbul
           {toplamKalanDakika !== null ? ' • Tahmini varis: ' + Math.ceil(toplamKalanDakika) + ' dk' : ''}
         </Text>
+        {sonBilinenKonumMu && (
+          <Text style={{ color: '#F2B705', fontSize: 11, marginTop: 2 }}>Son bilinen konum gosteriliyor</Text>
+        )}
       </View>
 
       <View style={styles.haritaKapsayici}>
