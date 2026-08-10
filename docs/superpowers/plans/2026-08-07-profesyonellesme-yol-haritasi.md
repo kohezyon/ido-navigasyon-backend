@@ -20,7 +20,7 @@ Fazlar bağımlılık ve risk sırasına göre dizildi: önce yolcu/personel gü
 | 3 | Gerçek GPS entegrasyonu | Yüksek | Orta (1 hafta, donanıma bağlı) | ✅ Tamamlandı |
 | 4 | Güvenilirlik & operasyon altyapısı | Orta | Orta (1 hafta) | ✅ Tamamlandı (4/4 alt-proje ele alındı) |
 | 5 | Test & CI/CD | Orta | Orta (1 hafta) | 🟡 CI kuruldu, lint/staging ayrı kararlar |
-| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | 🟡 Alt-proje 1/3 tamamlandı |
+| 6 | Mobil uygulama sağlamlaştırma | Orta | Orta-Büyük (1-2 hafta) | ✅ Tamamlandı (2/2 somut alt-proje; yapısal refactor bilinçli olarak ertelendi) |
 | 7 | Prodüksiyon altyapısı & dokümantasyon | Düşük-Orta | Küçük-Orta | - |
 
 ---
@@ -136,4 +136,10 @@ Kapsam dışı bırakılan (kullanıcı kararıyla ayrı tutulan) iki alt-konu: 
 
 **Faz 6 / Alt-proje 1 (Leaflet local bundling) tamamlandı (2026-08-10)** (bkz. `2026-08-10-faz6-leaflet-local-bundling-design.md` / `2026-08-10-faz6-leaflet-local-bundling.md`). Roadmap'in dördüncü Faz 6 maddesi (personel app'te token'ı güvenli saklama) zaten yapılmış olduğu tespit edildi (`expo-secure-store` kullanılıyor). Kalan üç madde arasında en yüksek riskli/en düşük değerli olan `App.js`'in yapısal refactor'ü, somut fayda sağlayan iki işten (Leaflet bundling, offline davranış) sonraya bırakıldı — spekülatif refactor yerine ihtiyaç doğduğunda ele alınacak. Leaflet kütüphanesi artık CDN yerine local vendor edilmiş kaynaktan yükleniyor (döşemeler hariç), Metro bundler sağlık kontrolü başarılı; gerçek cihazda görsel doğrulama ayrı bir manuel adım olarak bekliyor.
 
-Sıradaki: **Faz 6 / Alt-proje 2** (offline/zayıf bağlantı davranışı) veya kullanıcı önceliğine göre başka bir konu.
+**Faz 6 / Alt-proje 2 (offline/zayıf bağlantı davranışı) tamamlandı (2026-08-10)** (bkz. `2026-08-10-faz6-offline-davranis-design.md` / `2026-08-10-faz6-offline-davranis.md`). Mevcut durumda zaten bir `baglantiDurumu` göstergesi olduğu tespit edildi (roadmap'in "bilgilendir" kısmı zaten karşılanmıştı) — gerçek eksik, sunucudan gelen verinin hiç cache'lenmemesiydi. `/seferler/aktif` ve son bilinen gemi konumu artık `AsyncStorage`'a yazılıyor; bağlantı koptuğunda kullanıcıya "gerçekten sefer yok" ile "sunucuya ulaşılamadı" arasındaki fark artık ayrı mesajlarla gösteriliyor, son bilinen konum bir uyarı notuyla birlikte hemen gösteriliyor.
+
+**Faz 6 / Alt-proje 3 (App.js yapısal refactor) bilinçli olarak ertelendi** — iki somut iş (Leaflet bundling, offline davranış) mevcut dosya yapısı içinde sorunsuz tamamlandı, spekülatif bir bölme işlemini gerektirecek bir zorluk çıkmadı. YAGNI gereği, bu refactor ancak dosya gerçekten çalışılamaz hale gelirse ele alınacak.
+
+**Faz 6 tamamlandı.**
+
+Sıradaki: Kullanıcı önceliğine göre — **Faz 5'in kalan alt-konuları** (lint, staging ortamı) veya **Faz 7** (Prodüksiyon Altyapısı & Dokümantasyon).
