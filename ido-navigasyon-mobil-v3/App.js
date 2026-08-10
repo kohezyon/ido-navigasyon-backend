@@ -2,12 +2,23 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Linking, TouchableOpacity, StatusBar, Vibration, AccessibilityInfo, Switch, Modal, Alert, TextInput } from 'react-native';
 import { io } from 'socket.io-client';
 import { WebView } from 'react-native-webview';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { PublicSans_400Regular, PublicSans_600SemiBold, PublicSans_700Bold } from '@expo-google-fonts/public-sans';
 
 const leafletJs = require('./assets/leaflet/leafletJs');
 const leafletCss = require('./assets/leaflet/leafletCss');
+
+const TEMA = {
+  navyDeep: '#0A2540',
+  navyMid: '#123A5E',
+  gold: '#C9962B',
+  goldSoft: '#E4C173',
+  teal: '#2B7A78',
+};
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -27,6 +38,13 @@ const TANITIM_EKRANLARI = [
 ];
 
 export default function App() {
+  const [fontlarYuklendi] = useFonts({
+    Fraunces_600SemiBold,
+    PublicSans_400Regular,
+    PublicSans_600SemiBold,
+    PublicSans_700Bold,
+  });
+
   const [baglantiDurumu, setBaglantiDurumu] = useState('Baglaniyor...');
   const [konum, setKonum] = useState(null);
   const [yakinlik, setYakinlik] = useState('Herhangi bir noktaya yakin degil');
@@ -393,6 +411,15 @@ export default function App() {
     </html>
   `;
 
+  if (!fontlarYuklendi) {
+    return (
+      <View style={[styles.disKapsayici, { alignItems: 'center', justifyContent: 'center', backgroundColor: TEMA.navyDeep }]}>
+        <StatusBar barStyle="light-content" backgroundColor={TEMA.navyDeep} />
+        <Text style={{ color: 'white', fontSize: 16 }}>Yukleniyor...</Text>
+      </View>
+    );
+  }
+
   if (seferlerYukleniyor) {
     return (
       <View style={[styles.disKapsayici, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -431,10 +458,13 @@ export default function App() {
   }
 
   return (
-    <View style={[styles.disKapsayici, { backgroundColor: karanlikMod ? '#0B1520' : '#0D3B66' }]}>
-      <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : '#0D3B66'} />
+    <View style={styles.disKapsayici}>
+      <StatusBar barStyle="light-content" backgroundColor={karanlikMod ? '#0B1520' : TEMA.navyDeep} />
 
-      <View style={[styles.ustCubuk, acilDurum && styles.ustCubukAcil, karanlikMod && !acilDurum && { backgroundColor: '#0B1520', borderBottomColor: '#1B2733' }]}>
+      <LinearGradient
+        colors={acilDurum ? ['#B71C1C', '#7F0000'] : (karanlikMod ? ['#0B1520', '#12324D'] : [TEMA.navyDeep, TEMA.navyMid])}
+        style={styles.ustCubuk}
+      >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={[styles.ustCubukBaslik, { fontSize: 20 * boyutCarpani }]}>IDO Engelsiz Navigasyon</Text>
@@ -456,7 +486,12 @@ export default function App() {
         </View>
 
         <View style={styles.ilerlemeDisKutu}>
-          <View style={[styles.ilerlemeIcKutu, { width: ilerlemeYuzdesi + '%' }]} />
+          <LinearGradient
+            colors={[TEMA.goldSoft, TEMA.gold]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.ilerlemeIcKutu, { width: ilerlemeYuzdesi + '%' }]}
+          />
         </View>
         <Text style={styles.ilerlemeYazi}>
           Yalova %{ilerlemeYuzdesi.toFixed(0)} Istanbul
@@ -465,7 +500,7 @@ export default function App() {
         {sonBilinenKonumMu && (
           <Text style={{ color: '#F2B705', fontSize: 11, marginTop: 2 }}>Son bilinen konum gosteriliyor</Text>
         )}
-      </View>
+      </LinearGradient>
 
       <View style={styles.haritaKapsayici}>
         <WebView ref={webViewRef} originWhitelist={['*']} source={{ html: haritaHtml }} style={styles.harita} />
@@ -487,8 +522,9 @@ export default function App() {
           </View>
         )}
 
-        <View
-          style={[styles.ozetKart, { backgroundColor: acilDurum ? '#B71C1C' : (karanlikMod ? '#12324D' : '#0D3B66') }]}
+        <LinearGradient
+          colors={acilDurum ? ['#B71C1C', '#7F0000'] : (karanlikMod ? ['#0B1520', '#12324D'] : [TEMA.navyDeep, TEMA.navyMid])}
+          style={styles.ozetKart}
           accessible={true}
           accessibilityLabel={
             'Ozet: Baglanti ' + baglantiDurumu +
@@ -517,10 +553,10 @@ export default function App() {
           {!acilDurum && havaDurumu && (
             <Text style={styles.ozetKartAltYazi}>🌤️ {havaDurumu.sicaklik}°C, {havaDurumu.aciklama}, ruzgar {havaDurumu.ruzgarHizi} km/s</Text>
           )}
-        </View>
+        </LinearGradient>
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]} accessible={true} accessibilityLabel={'Baglanti durumu: ' + baglantiDurumu}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>BAGLANTI DURUMU</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>BAGLANTI DURUMU</Text>
           <View style={styles.satirIci}>
             <View style={[styles.durumNoktasi, { backgroundColor: baglantiDurumu === 'Bagli' ? '#2E7D32' : '#C62828' }]} />
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{baglantiDurumu}</Text>
@@ -529,18 +565,18 @@ export default function App() {
 
         {yolcuSayisi !== null && (
           <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-            <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>GEMIDEKI ENGELLI YOLCU SAYISI</Text>
+            <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>GEMIDEKI ENGELLI YOLCU SAYISI</Text>
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{yolcuSayisi} kisi</Text>
           </View>
         )}
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>YAKINLIK DURUMU</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>YAKINLIK DURUMU</Text>
           <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>{yakinlik}</Text>
         </View>
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>SIMDIKI HEDEF</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>SIMDIKI HEDEF</Text>
           <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 16 * boyutCarpani }]}>
             {suankiHedef || 'Bekleniyor...'}
             {hedefeKalanDakika !== null ? '  (~' + Math.ceil(hedefeKalanDakika) + ' dk)' : ''}
@@ -548,7 +584,7 @@ export default function App() {
 
           {sonrakiDuraklar.length > 0 && (
             <View style={{ marginTop: 12 }}>
-              <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>SONRAKI DURAKLAR</Text>
+              <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>SONRAKI DURAKLAR</Text>
               {sonrakiDuraklar.map((durak, index) => (
                 <View key={index} style={styles.durakSatiri}>
                   <View style={styles.durakNumarasi}>
@@ -578,7 +614,7 @@ export default function App() {
         )}
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>BU HAT HAKKINDA</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>BU HAT HAKKINDA</Text>
           <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 14 * boyutCarpani, lineHeight: 20 }]}>
             Yalova - Istanbul feribot hatti, Marmara Denizi uzerinden yaklasik 65 km surer.
             Ortalama yolculuk suresi 1 saat 15 dakikadir. Feribotlar bisiklet ve arac tasima
@@ -587,7 +623,7 @@ export default function App() {
         </View>
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan, marginTop: 6 }]}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>TUM DURAKLAR</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>TUM DURAKLAR</Text>
 
           {tumNoktalar.length === 0 && (
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 15 * boyutCarpani }]}>Yukleniyor...</Text>
@@ -636,7 +672,7 @@ export default function App() {
 
         {favoriler.length > 0 && (
           <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-            <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>FAVORILERIM</Text>
+            <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>FAVORILERIM</Text>
             {favoriler.map((ad, index) => (
               <Text key={index} style={[styles.degerYazi, { color: renkler.yazi, fontSize: 15 * boyutCarpani, marginTop: 4 }]}>❤️ {ad}</Text>
             ))}
@@ -645,7 +681,7 @@ export default function App() {
 
         {gecmisBildirimler.length > 0 && (
           <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-            <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>GECMIS BILDIRIMLER</Text>
+            <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>GECMIS BILDIRIMLER</Text>
             {gecmisBildirimler.map((b, index) => (
               <View key={index} style={{ marginTop: 8 }}>
                 <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 14 * boyutCarpani }]}>{b.zaman} - {b.mesaj}</Text>
@@ -655,7 +691,7 @@ export default function App() {
         )}
 
         <View style={[styles.kutu, { backgroundColor: renkler.kutuArkaplan }]}>
-          <Text style={[styles.etiket, { color: renkler.etiket, fontSize: 12 * boyutCarpani }]}>UYGULAMAYI BEGENDINIZ MI?</Text>
+          <Text style={[styles.etiket, { fontSize: 12 * boyutCarpani }]}>UYGULAMAYI BEGENDINIZ MI?</Text>
           {geriBildirimVerildi ? (
             <Text style={[styles.degerYazi, { color: renkler.yazi, fontSize: 15 * boyutCarpani }]}>Gorusunuz icin tesekkurler!</Text>
           ) : (
@@ -796,15 +832,14 @@ export default function App() {
 
 const styles = StyleSheet.create({
   disKapsayici: { flex: 1 },
-  ustCubuk: { backgroundColor: '#0D3B66', paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: '#1E6091' },
-  ustCubukAcil: { backgroundColor: '#B71C1C', borderBottomColor: '#7F0000' },
-  ustCubukBaslik: { color: '#FFFFFF', fontWeight: 'bold' },
-  ustCubukAltBaslik: { color: '#CDE3F0', marginTop: 4 },
+  ustCubuk: { paddingTop: 55, paddingBottom: 16, paddingHorizontal: 20, borderBottomWidth: 3, borderBottomColor: '#1E6091' },
+  ustCubukBaslik: { color: '#FFFFFF', fontWeight: 'bold', fontFamily: 'Fraunces_600SemiBold' },
+  ustCubukAltBaslik: { color: '#CDE3F0', marginTop: 4, fontFamily: 'PublicSans_400Regular' },
   temaButon: { padding: 8 },
   temaButonYazi: { fontSize: 20 },
   ilerlemeDisKutu: { height: 8, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, marginTop: 14, overflow: 'hidden' },
-  ilerlemeIcKutu: { height: 8, backgroundColor: '#4FA3D9', borderRadius: 4 },
-  ilerlemeYazi: { color: '#CDE3F0', fontSize: 11, marginTop: 6 },
+  ilerlemeIcKutu: { height: 8, borderRadius: 4 },
+  ilerlemeYazi: { color: '#CDE3F0', fontSize: 11, marginTop: 6, fontFamily: 'PublicSans_400Regular' },
   haritaKapsayici: { height: 260, width: '100%' },
   harita: { height: 260, width: '100%' },
   govde: { flex: 1 },
@@ -817,12 +852,16 @@ const styles = StyleSheet.create({
   ozetKart: { borderRadius: 14, padding: 20, marginBottom: 16 },
   ozetSatir: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   ozetNokta: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  ozetKartYaziKucuk: { color: '#CDE3F0', fontSize: 12, fontWeight: 'bold' },
-  ozetKartBuyukYazi: { color: 'white', fontSize: 22, fontWeight: 'bold' },
-  ozetKartAltYazi: { color: '#CDE3F0', fontSize: 14, marginTop: 6 },
-  kutu: { padding: 16, borderRadius: 10, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#1E6091' },
-  etiket: { fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 6 },
-  degerYazi: { fontWeight: '500' },
+  ozetKartYaziKucuk: { color: '#E4C173', fontSize: 12, fontWeight: 'bold', fontFamily: 'PublicSans_700Bold' },
+  ozetKartBuyukYazi: { color: 'white', fontSize: 22, fontWeight: 'bold', fontFamily: 'Fraunces_600SemiBold' },
+  ozetKartAltYazi: { color: '#CDE3F0', fontSize: 14, marginTop: 6, fontFamily: 'PublicSans_400Regular' },
+  kutu: {
+    padding: 16, borderRadius: 14, marginBottom: 14,
+    shadowColor: '#0A2540', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8,
+    elevation: 2
+  },
+  etiket: { fontWeight: 'bold', letterSpacing: 0.5, marginBottom: 6, color: '#2B7A78', fontFamily: 'PublicSans_700Bold', fontSize: 11 },
+  degerYazi: { fontWeight: '500', fontFamily: 'PublicSans_600SemiBold' },
   satirIci: { flexDirection: 'row', alignItems: 'center' },
   durumNoktasi: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   durakSatiri: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
