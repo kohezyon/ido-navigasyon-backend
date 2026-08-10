@@ -86,11 +86,8 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    if (!erisimTokeni) return;
-
-    setEkran('yukleniyor');
-    Promise.all([
+  function aktifSeferListesiniYenile() {
+    return Promise.all([
       fetch(SUNUCU_ADRESI + '/seferler/aktif').then((r) => r.json()),
       fetch(SUNUCU_ADRESI + '/gemiler').then((r) => r.json()),
       fetch(SUNUCU_ADRESI + '/hatlar').then((r) => r.json()),
@@ -99,14 +96,19 @@ export default function App() {
         setAktifSeferler(seferler);
         setGemiler(gemiListesi);
         setHatlar(hatListesi);
-        setEkran('sefer-sec');
       })
       .catch(() => {
         setAktifSeferler([]);
         setGemiler([]);
         setHatlar([]);
-        setEkran('sefer-sec');
       });
+  }
+
+  useEffect(() => {
+    if (!erisimTokeni) return;
+
+    setEkran('yukleniyor');
+    aktifSeferListesiniYenile().then(() => setEkran('sefer-sec'));
   }, [erisimTokeni]);
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function App() {
           Alert.alert('Hata', 'Sefer secilemedi. Lutfen tekrar deneyin.');
           setSeciliSeferId(null);
           setEkran('sefer-sec');
+          aktifSeferListesiniYenile();
           return;
         }
         setAcilDurumAktif(!!yanit.acil_durum_aktif);
@@ -147,6 +150,7 @@ export default function App() {
       Alert.alert('Sefer Sona Erdi', 'Bu sefer baska bir kullanici tarafindan bitirildi.');
       setSeciliSeferId(null);
       setEkran('sefer-sec');
+      aktifSeferListesiniYenile();
     });
 
     let konumIzlemeIptalEdildi = false;
