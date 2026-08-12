@@ -1,4 +1,5 @@
 require('dotenv').config();
+const Sentry = require('./hataIzleme.js');
 
 const express = require('express');
 const http = require('http');
@@ -109,6 +110,7 @@ function kalanToplamMesafeHesapla(sefer) {
 
 function sunucuHatasiYanitla(res, hata, genelMesaj) {
     console.error(genelMesaj + ':', hata.message);
+    Sentry.captureException(hata);
     res.status(500).json({ hata: genelMesaj });
 }
 
@@ -156,6 +158,7 @@ async function konumKontrolVeYayinla(seferId, sefer, hizMetreSaniye) {
 
     } catch (hata) {
         console.log('Konum kontrol hatasi (sefer ' + seferId + '):', hata.message);
+        Sentry.captureException(hata);
     }
 }
 
@@ -522,6 +525,8 @@ app.post('/geri-bildirim', (req, res) => {
     res.json({ tamam: true });
 });
 
+Sentry.setupExpressErrorHandler(app);
+
 // Express, hata-yakalayan middleware'i 4 parametreli imzasindan (err, req, res, next)
 // tanir; 'next' kullanilmasa da kaldirilamaz.
 // eslint-disable-next-line no-unused-vars
@@ -548,8 +553,10 @@ if (require.main === module) {
         sunucu.listen(PORT, () => {
             console.log(`Sunucu calisiyor: http://localhost:${PORT}`);
         });
-    })().catch((hata) => {
+    })().catch(async (hata) => {
         console.error('Baslangic kurtarma hatasi, sunucu baslatilamadi:', hata.message);
+        Sentry.captureException(hata);
+        await Sentry.flush(2000);
         process.exit(1);
     });
 }

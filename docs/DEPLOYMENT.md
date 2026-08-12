@@ -22,6 +22,7 @@ Bu doküman, `ido-navigasyon-backend`'i (ve iki Expo uygulamasını) çalıştı
 | `PORT` | Hayır (varsayılan 3000) | HTTP/Socket.io sunucusunun dinleyeceği port. |
 | `HAVA_DURUMU_API_ANAHTARI` | Hayır | OpenWeatherMap API anahtarı — `/hava-durumu` uç noktası için. Tanımlı değilse o uç nokta muhtemelen hata döner (kritik değil). |
 | `ALLOWED_ORIGINS` | Hayır | Virgülle ayrılmış, tarayıcı-tabanlı istemcilerin CORS origin listesi. Mobil app'ler buna bağlı değil (native HTTP/socket istemcileri CORS'tan etkilenmez). |
+| `SENTRY_DSN` | Hayır | Sentry hata izleme DSN'i. Tanımlı değilse Sentry devre dışı kalır, hatalar sadece konsola loglanır. |
 
 **Yerel geliştirme için** (bu proje kapsamında bu oturumda kurulan gerçek akış):
 1. Repo kökünde `.env` dosyası oluştur (git tarafından izlenmiyor, `.gitignore`'da).
