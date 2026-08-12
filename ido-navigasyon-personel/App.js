@@ -3,12 +3,30 @@ import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, TextInput, 
 import { io } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { PublicSans_400Regular, PublicSans_600SemiBold, PublicSans_700Bold } from '@expo-google-fonts/public-sans';
+
+const TEMA = {
+  navyDeep: '#0A2540',
+  navyMid: '#123A5E',
+  gold: '#C9962B',
+  goldSoft: '#E4C173',
+  teal: '#2B7A78',
+};
 
 const SUNUCU_ADRESI = process.env.EXPO_PUBLIC_SUNUCU_ADRESI || 'https://ido-navigasyon-backend.onrender.com';
 const ERISIM_TOKEN_DEPO_ADI = 'personel_erisim_tokeni';
 const YENILEME_TOKEN_DEPO_ADI = 'personel_yenileme_tokeni';
 
 export default function App() {
+  const [fontlarYuklendi] = useFonts({
+    Fraunces_600SemiBold,
+    PublicSans_400Regular,
+    PublicSans_600SemiBold,
+    PublicSans_700Bold,
+  });
+
   const [tokenYukleniyor, setTokenYukleniyor] = useState(true);
   const [erisimTokeni, setErisimTokeni] = useState(null);
   const [yenilemeTokeni, setYenilemeTokeni] = useState(null);
@@ -369,7 +387,7 @@ export default function App() {
 
   let icerik;
 
-  if (tokenYukleniyor || (erisimTokeni && ekran === 'yukleniyor')) {
+  if (!fontlarYuklendi || tokenYukleniyor || (erisimTokeni && ekran === 'yukleniyor')) {
     icerik = (
       <View style={styles.govde}>
         <Text style={styles.etiket}>Yukleniyor...</Text>
@@ -543,12 +561,12 @@ export default function App() {
 
   return (
     <View style={styles.disKapsayici}>
-      <StatusBar barStyle="light-content" backgroundColor="#0D3B66" />
+      <StatusBar barStyle="light-content" backgroundColor={TEMA.navyDeep} />
       {ekran === 'panel' && erisimTokeni ? (
-        <View style={styles.ustCubuk}>
+        <LinearGradient colors={[TEMA.navyDeep, TEMA.navyMid]} style={styles.ustCubuk}>
           <Text style={styles.ustCubukBaslik}>Personel Paneli</Text>
           <Text style={styles.ustCubukAltBaslik}>IDO Engelsiz Navigasyon</Text>
-        </View>
+        </LinearGradient>
       ) : null}
       {icerik}
     </View>
@@ -556,25 +574,24 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  disKapsayici: { flex: 1, backgroundColor: '#0D3B66' },
+  disKapsayici: { flex: 1, backgroundColor: '#0A2540' },
   ustCubuk: {
-    backgroundColor: '#0D3B66',
     paddingTop: 55,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 3,
     borderBottomColor: '#1E6091',
   },
-  ustCubukBaslik: { color: '#FFFFFF', fontSize: 22, fontWeight: 'bold' },
-  ustCubukAltBaslik: { color: '#CDE3F0', fontSize: 13, marginTop: 4 },
+  ustCubukBaslik: { color: '#FFFFFF', fontSize: 22, fontWeight: 'bold', fontFamily: 'Fraunces_600SemiBold' },
+  ustCubukAltBaslik: { color: '#CDE3F0', fontSize: 13, marginTop: 4, fontFamily: 'PublicSans_400Regular' },
   govde: { flex: 1, backgroundColor: '#F4F8FB', padding: 20 },
   durumKutusu: {
     backgroundColor: '#FFFFFF',
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 14,
     marginBottom: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1E6091',
+    shadowColor: '#0A2540', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8,
+    elevation: 2,
   },
   seciliKutu: { borderLeftColor: '#2E7D32', borderLeftWidth: 6 },
   anahtarGirisAlani: {
@@ -586,8 +603,8 @@ const styles = StyleSheet.create({
     color: '#0D3B66',
   },
   hataYazisi: { color: '#C62828', marginBottom: 12, fontSize: 13 },
-  etiket: { fontSize: 12, fontWeight: 'bold', color: '#5B7A8F', letterSpacing: 0.5, marginBottom: 6 },
-  degerYazi: { fontSize: 16, color: '#0D3B66', fontWeight: '500' },
+  etiket: { fontSize: 12, fontWeight: 'bold', color: '#2B7A78', letterSpacing: 0.5, marginBottom: 6, fontFamily: 'PublicSans_700Bold' },
+  degerYazi: { fontSize: 16, color: '#0D3B66', fontWeight: '500', fontFamily: 'PublicSans_600SemiBold' },
   satirIci: { flexDirection: 'row', alignItems: 'center' },
   durumNoktasi: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   acilDurumYazisi: { fontSize: 17, fontWeight: 'bold' },

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ido-navigasyon-mobil-v3",
+    "name": "İDO Engelsiz Navigasyon",
     "slug": "ido-navigasyon-mobil-v3",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D3B66"
+      "backgroundColor": "#0A2540"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0D3B66"
+        "backgroundColor": "#0A2540"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.kohezyon.idonavigasyonmobilv3"
